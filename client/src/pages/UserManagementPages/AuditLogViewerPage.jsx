@@ -20,9 +20,11 @@ import {
   Modal,
   Code,
   ScrollArea,
+  Spoiler,
 } from '@mantine/core';
 import { IconSearch, IconFilter, IconAlertCircle, IconClock, IconRefresh, IconDeviceDesktop, IconInfoCircle, IconDownload } from '@tabler/icons-react';
 import api from '../../services/api';
+import { getActionStatusDisplay } from '../../utils/erpMessages';
 
 function AuditLogViewerPage() {
   const [logs, setLogs] = useState([]);
@@ -80,8 +82,9 @@ function AuditLogViewerPage() {
   useEffect(() => {
     fetchAuditLogs();
 
-    // Auto-refresh every 5 seconds for real-time updates
-    const interval = setInterval(fetchAuditLogs, 5000);
+    // Auto-refresh every 45 seconds for real-time ERP standards
+    // This balances between real-time updates and server load
+    const interval = setInterval(fetchAuditLogs, 45000);
 
     // Cleanup interval on unmount
     return () => clearInterval(interval);
@@ -149,8 +152,30 @@ function AuditLogViewerPage() {
     });
   };
 
-  const getStatusColor = (status) => {
-    return status === 'SUCCESS' ? 'green' : 'red';
+  const getStatusDisplay = (status) => {
+    return getActionStatusDisplay(status);
+  };
+
+  const formatDescription = (description) => {
+    // Enhanced descriptions already contain emojis and proper formatting from backend
+    // Just need to display them properly
+    if (!description) return '';
+
+    // Split by pipe separator for multi-part descriptions
+    const parts = description.split(' | ').map(part => part.trim());
+
+    return parts;
+  };
+
+  const getActionBadgeColor = (action) => {
+    // Color coding based on action type
+    if (action.includes('CREATE') || action.includes('RESTORE')) return 'green';
+    if (action.includes('DELETE') || action.includes('ARCHIVE') || action.includes('REVOKE')) return 'red';
+    if (action.includes('UPDATE') || action.includes('CHANGE')) return 'blue';
+    if (action.includes('FAILED') || action.includes('ERROR')) return 'red';
+    if (action.includes('LOGIN') || action.includes('LOGOUT')) return 'gray';
+    if (action.includes('EMERGENCY')) return 'orange';
+    return 'blue';
   };
 
   return (
@@ -160,9 +185,14 @@ function AuditLogViewerPage() {
           <Title order={2}>System Audit Logs</Title>
           <Group spacing="md">
             {lastUpdated && (
-              <Text size="xs" color="dimmed">
-                Last updated: {lastUpdated.toLocaleTimeString()}
-              </Text>
+              <Group spacing="xs">
+                <Text size="xs" color="dimmed">
+                  Last updated: {lastUpdated.toLocaleTimeString()}
+                </Text>
+                <Badge size="xs" color="green" variant="light">
+                  Auto-refresh: 45s
+                </Badge>
+              </Group>
             )}
             <Button
               variant="outline"
@@ -312,8 +342,12 @@ function AuditLogViewerPage() {
                         )}
                       </td>
                       <td>
-                        <Badge size="sm" variant="light">
-                          {log.action}
+                        <Badge
+                          size="sm"
+                          color={getActionBadgeColor(log.action)}
+                          variant="light"
+                        >
+                          {log.action.replace(/_/g, ' ')}
                         </Badge>
                       </td>
                       <td>
@@ -322,13 +356,20 @@ function AuditLogViewerPage() {
                         </Text>
                       </td>
                       <td>
-                        <Text
-                          size="sm"
-                          lineClamp={2}
-                          style={{ maxWidth: '300px' }}
+                        <Spoiler
+                          maxHeight={60}
+                          showLabel="Show more"
+                          hideLabel="Show less"
+                          transitionDuration={200}
                         >
-                          {log.description}
-                        </Text>
+                          <div style={{ maxWidth: '400px', lineHeight: 1.5, fontSize: '0.875rem' }}>
+                            {formatDescription(log.description).map((part, idx) => (
+                              <div key={idx}>
+                                {part}
+                              </div>
+                            ))}
+                          </div>
+                        </Spoiler>
                       </td>
                       <td>
                         <Text size="xs" style={{ fontFamily: 'monospace' }}>
@@ -336,13 +377,16 @@ function AuditLogViewerPage() {
                         </Text>
                       </td>
                       <td>
-                        <Badge
-                          size="sm"
-                          color={getStatusColor(log.status)}
-                          variant="filled"
-                        >
-                          {log.status}
-                        </Badge>
+                        <Group spacing="xs">
+                          <Text size="sm">{getStatusDisplay(log.status).icon}</Text>
+                          <Badge
+                            size="sm"
+                            color={getStatusDisplay(log.status).color}
+                            variant="filled"
+                          >
+                            {getStatusDisplay(log.status).label}
+                          </Badge>
+                        </Group>
                       </td>
                       <td>
                         <Group spacing={4}>
@@ -398,13 +442,16 @@ function AuditLogViewerPage() {
                   <Text size="xs" color="dimmed" weight={500} mb={4}>
                     Status
                   </Text>
-                  <Badge
-                    size="sm"
-                    color={getStatusColor(selectedLog.status)}
-                    variant="filled"
-                  >
-                    {selectedLog.status}
-                  </Badge>
+                  <Group spacing="xs">
+                    <Text>{getStatusDisplay(selectedLog.status).icon}</Text>
+                    <Badge
+                      size="sm"
+                      color={getStatusDisplay(selectedLog.status).color}
+                      variant="filled"
+                    >
+                      {getStatusDisplay(selectedLog.status).label}
+                    </Badge>
+                  </Group>
                 </div>
               </Group>
 
@@ -413,7 +460,7 @@ function AuditLogViewerPage() {
                   <Text size="xs" color="dimmed" weight={500} mb={4}>
                     User
                   </Text>
-                  <Text size="sm">
+                  <Text size="sm" weight={500}>
                     {selectedLog.user_username || 'System'}
                   </Text>
                 </div>
@@ -421,8 +468,12 @@ function AuditLogViewerPage() {
                   <Text size="xs" color="dimmed" weight={500} mb={4}>
                     Action
                   </Text>
-                  <Badge size="sm" variant="light">
-                    {selectedLog.action}
+                  <Badge
+                    size="sm"
+                    color={getActionBadgeColor(selectedLog.action)}
+                    variant="light"
+                  >
+                    {selectedLog.action.replace(/_/g, ' ')}
                   </Badge>
                 </div>
               </Group>
@@ -438,7 +489,11 @@ function AuditLogViewerPage() {
                 <Text size="xs" color="dimmed" weight={500} mb={4}>
                   Description
                 </Text>
-                <Text size="sm">{selectedLog.description}</Text>
+                <Paper withBorder p="sm" radius="sm" style={{ backgroundColor: '#f8f9fa' }}>
+                  <Text size="sm" style={{ lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                    {selectedLog.description}
+                  </Text>
+                </Paper>
               </div>
 
               <Group grow>

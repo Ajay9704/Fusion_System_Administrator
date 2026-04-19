@@ -25,6 +25,13 @@ export const getAllDepartments = async () => {
   return response.data;
 };
 
+export const getDepartmentsByProgramme = async (programme) => {
+  const response = await apiClient.get('/departments/by-programme/', {
+    params: { programme }
+  });
+  return response.data;
+};
+
 export const getAllBatches = async () => {
   const response = await apiClient.get('/batches/');
   return response.data;

@@ -1,34 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Box,
-  Button,
-  TextInput,
-  Text,
-  Stack,
-  Flex,
-  Grid,
-  MultiSelect,
-  Modal,
-  Input,
-  Select,
-  useMantineTheme,
-  SimpleGrid,
-  Group,
-  Container,
-  rem,
-  Title,
-  Tabs,
-  Space,
-  Divider,
-  Checkbox,
-  Center,
-  Loader,
+  Box, Button, TextInput, Text, Stack, Flex, Grid, Modal,
+  Select, SimpleGrid, Group, Container, Title, Divider,
+  Checkbox, Center, Loader,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { privileges } from "../../data/privileges";
-import axios from "axios";
-import { FaCheck, FaTimes } from 'react-icons/fa';
 import { useMediaQuery } from "@mantine/hooks";
+
+import apiClient from "../../services/api";
 
 const ManageRoleAccessPage = () => {
 
@@ -38,93 +18,58 @@ const ManageRoleAccessPage = () => {
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
-  const xIcon = <FaTimes style={{ width: rem(20), height: rem(20) }} />;
-  const checkIcon = <FaCheck style={{ width: rem(20), height: rem(20) }} />;
-
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const response = await axios.get(API_URL + `/api/view-roles`);
+        const response = await apiClient.get(`/view-roles/`);
         setRoles(response.data.map((role) => ({
           label: role.name,
           value: role.name,
         })));
       } catch (error) {
         notifications.show({
-          title: "Error",
-          position: "top-center",
-          icon: xIcon,
-          withCloseButton: true,
-          message: "Could not fetch roles.",
-          color: "red",
+          title: "Error", position: "top-center", withCloseButton: true,
+          message: "Could not fetch roles.", color: "red",
         });
-        console.log("Error fetching roles: ", error);
       }
-    }
+    };
     fetchRoles();
   }, []);
 
   const fetchModuleAccess = async () => {
     setLoading(true);
-
     try {
-      const response = await axios.get(API_URL + `/api/get-module-access/`, {
+      const response = await apiClient.get(`/get-module-access/`, {
         params: { designation: roleName },
       });
       setModuleAccess(response.data);
     } catch (error) {
       notifications.show({
-        title: "Error",
-        position: "top-center",
-        icon: xIcon,
-        withCloseButton: true,
-        message: `Failed to fetch module access for ${roleName}`,
-        color: "red",
+        title: "Error", position: "top-center", withCloseButton: true,
+        message: `Failed to fetch module access for ${roleName}`, color: "red",
       });
-      console.error("Error fetching module access: ", error);
     } finally {
       setLoading(false);
-    };
+    }
   };
-
-  const handleModuleChange = (moduleName) => {
-    setModuleAccess((prevState) => ({
-      ...prevState,
-      [moduleName]: !prevState[moduleName],
-    }));
-  };
-
-  useEffect(() => {
-    console.log(moduleAccess);
-  }, [moduleAccess]);
 
   const handleSubmit = async () => {
     setIsOpen(false);
     try {
-      await axios.put(API_URL + `/api/modify-roleaccess/`, {
+      await apiClient.put(`/modify-roleaccess/`, {
         designation: roleName,
         ...moduleAccess,
       });
-
       notifications.show({
-        title: "Success",
-        position: "top-center",
-        icon: checkIcon,
-        withCloseButton: true,
-        message: "Role access updated successfully.",
-        color: "green",
+        title: "Success", position: "top-center", withCloseButton: true,
+        message: "Role access updated successfully.", color: "green",
       });
     } catch (error) {
       notifications.show({
-        title: "Error",
-        position: "top-center",
-        icon: xIcon,
-        withCloseButton: true,
-        message: `Failed to update role access for ${roleName}`,
-        color: "red",
+        title: "Error", position: "top-center", withCloseButton: true,
+        message: `Failed to update role access for ${roleName}`, color: "red",
       });
-      console.error("Error updating role access: ", error);
-    };
+    }
   };
 
   const stats = [
@@ -195,9 +140,14 @@ const ManageRoleAccessPage = () => {
     label: privilege.name,
   }));
 
-  const matches = useMediaQuery('(min-width: 768px)');
+  const handleModuleChange = (moduleName) => {
+    setModuleAccess((prevState) => ({
+      ...prevState,
+      [moduleName]: !prevState[moduleName],
+    }));
+  };
 
-  const API_URL = import.meta.env.VITE_BACKEND_URL;
+  const matches = useMediaQuery('(min-width: 768px)');
 
   return (
     <Box

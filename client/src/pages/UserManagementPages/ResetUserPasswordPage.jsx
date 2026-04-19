@@ -20,10 +20,10 @@ import {
     Center
 } from '@mantine/core';
 
-import { showNotification } from '@mantine/notifications';
-import '@mantine/notifications/styles.css';
 import { FaCheck, FaTimes, FaDiceD6 } from 'react-icons/fa';
 import { resetPassword } from '../../api/Users';
+import { showErrorNotification, showSuccessNotification } from '../../utils/errorHandler';
+import { getStandardErrorMessage } from '../../utils/erpMessages';
 
 const ResetUserPasswordPage = () => {
     const [formData, setFormData] = useState({
@@ -60,28 +60,16 @@ const ResetUserPasswordPage = () => {
             const response = await resetPassword(formData);
             console.log('Reset Password for:', formData);
             close();
-            showNotification({
-                title: 'Password Reset',
-                icon: checkIcon,
-                position: "top-center",
-                withCloseButton: true,
-                message: `Password for ${formData.name} has been reset successfully.\nNew password: ${response.password}`,
-                color: 'green',
-            });
+            showSuccessNotification(
+                `Password for ${formData.username} has been reset successfully.\nNew password: ${response.password}`,
+                'Password Reset'
+            );
             setFormData({
-                name: '',
-                rollNo: '',
+                username: '',
             });
         }
         catch (e) {
-            showNotification({
-                title: 'Error',
-                icon: xIcon,
-                position: "top-center",
-                withCloseButton: true,
-                message: 'An error occurred while resetting password.   ',
-                color: 'red',
-            });
+            showErrorNotification(e, 'Password Reset Failed');
         }
     };
 

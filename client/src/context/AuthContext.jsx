@@ -24,18 +24,13 @@ export const AuthProvider = ({ children }) => {
       if (token && storedUser) {
         try {
           // Verify token is still valid by fetching user
-          console.log('Initializing auth - validating token...');
           const userData = await getCurrentUser();
           setUser(userData);
-          console.log('Auth initialized successfully for:', userData.username);
         } catch (error) {
-          console.warn('Token validation failed, clearing storage:', error.message);
-          // Token invalid, clear storage
+          // Token invalid, clear storage silently
           localStorage.clear();
           setUser(null);
         }
-      } else {
-        console.log('No existing auth found');
       }
       setLoading(false);
     };
@@ -45,34 +40,37 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      console.log('Attempting login for:', username);
       const response = await loginApi({ username, password });
-      
-      console.log('Login successful, user:', response.user.username);
-      console.log('Roles:', response.user.roles);
-      
+
       // Save tokens and user data
       localStorage.setItem('accessToken', response.access);
       localStorage.setItem('refreshToken', response.refresh);
       localStorage.setItem('user', JSON.stringify(response.user));
-      
+
       setUser(response.user);
       return response.user;
     } catch (error) {
-      console.error('Login failed:', error.response?.data || error.message);
+      // Enhance error with user-friendly message
+      if (error.response?.status === 401) {
+        error.userMessage = 'Invalid username or password. Please check your credentials and try again.';
+      } else if (error.response?.status === 429) {
+        error.userMessage = 'Too many login attempts. Please wait a few minutes before trying again.';
+      } else if (error.code === 'ERR_NETWORK') {
+        error.userMessage = 'Unable to connect to the server. Please check your internet connection.';
+      } else {
+        error.userMessage = 'Login failed. Please try again or contact support if the problem persists.';
+      }
       throw error;
     }
   };
 
   const logout = async () => {
     try {
-      console.log('Logging out user:', user?.username);
       await logoutApi();
     } catch (error) {
-      console.error('Logout API error:', error);
+      // Silently handle logout errors - we'll clear storage anyway
     } finally {
       // Always clear local storage
-      console.log('Clearing auth data');
       localStorage.clear();
       setUser(null);
     }

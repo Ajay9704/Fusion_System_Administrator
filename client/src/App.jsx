@@ -21,6 +21,8 @@ import ManageRoleAccessPage from "./pages/RoleManagementPages/ManageRoleAccessPa
 
 import UserDirectory from "./pages/UserDirectory/UserDirectory.jsx";
 import AuditLogViewerPage from "./pages/UserManagementPages/AuditLogViewerPage.jsx";
+import DepartmentManagementPage from "./pages/DepartmentManagement/DepartmentManagementPage.jsx";
+import EmergencyAccessPage from "./pages/EmergencyAccess/EmergencyAccessPage.jsx";
 
 import LoginPage from "./pages/Login/LoginPage.jsx";
 import Sidebar from "./components/Sidebar/Sidebar.jsx";
@@ -44,6 +46,8 @@ function Layout() {
           <Route path="/archive/students" element={<RequireAuth><ArchiveStudentsPage /></RequireAuth>} />
           <Route path="/archive/faculty" element={<RequireAuth><ArchiveFacultyPage /></RequireAuth>} />
           <Route path="/AuditLogs" element={<RequireAuth><AuditLogViewerPage /></RequireAuth>} />
+          <Route path="/DepartmentManagement" element={<RequireAuth><DepartmentManagementPage /></RequireAuth>} />
+          <Route path="/EmergencyAccess" element={<RequireAuth><EmergencyAccessPage /></RequireAuth>} />
         </Routes>
       </div>
     </div>

@@ -1,0 +1,153 @@
+# Docker Compose for Fusion System Administrator
+# Development and production orchestration
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: fusion-postgres
+    environment:
+      POSTGRES_DB: fusion_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fusion-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: fusion-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fusion-network
+
+  # Backend API (Development)
+  backend:
+    build:
+      context: ./Backend/backend
+      dockerfile: ../../Dockerfile
+    container_name: fusion-backend
+    environment:
+      - DEBUG=True
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_NAME=fusion_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/1
+    volumes:
+      - ./Backend/backend:/app
+      - static_files:/app/staticfiles
+      - media_files:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fusion-network
+    command: python manage.py runserver 0.0.0.0:8000
+
+  # Backend API (Production)
+  backend-prod:
+    build:
+      context: ./Backend/backend
+      dockerfile: ../../Dockerfile
+    container_name: fusion-backend-prod
+    environment:
+      - DEBUG=False
+      - ENVIRONMENT=production
+      - DB_HOST=postgres
+      - DB_NAME=fusion_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/1
+    volumes:
+      - static_files:/app/staticfiles
+      - media_files:/app/media
+      - log_files:/app/logs
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fusion-network
+    restart: unless-stopped
+
+  # Frontend (Development)
+  frontend:
+    build:
+      context: ./client
+      dockerfile: ../Dockerfile.frontend
+    container_name: fusion-frontend
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - fusion-network
+    command: npm run dev
+
+  # Nginx (Production Reverse Proxy)
+  nginx:
+    image: nginx:alpine
+    container_name: fusion-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_files:/usr/share/nginx/html/static
+      - media_files:/usr/share/nginx/html/media
+      - ./client/dist:/usr/share/nginx/html
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend-prod
+    networks:
+      - fusion-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  static_files:
+    driver: local
+  media_files:
+    driver: local
+  log_files:
+    driver: local
+
+networks:
+  fusion-network:
+    driver: bridge

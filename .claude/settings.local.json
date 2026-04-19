@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py check)",
+      "Bash(python -c \"import os; os.environ['ENVIRONMENT']='production'; os.environ['DEBUG']='False'; os.environ['SECRET_KEY']='test-secret-key-for-validation-purposes-long-enough'; os.environ['ALLOWED_HOSTS']='localhost'; from config.production import *; import django; django.setup\\(\\); print\\('✅ Production configuration loaded successfully'\\)\")"
+    ]
+  }
+}

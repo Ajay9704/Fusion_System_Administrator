@@ -1,136 +1,17 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
     Tabs, Card, Text, ScrollArea, Container, Title,
     Flex, Button, TextInput, MultiSelect, Grid, Loader,
     Paper, Center, Divider, Checkbox, Group,
-    rem, Modal
+    rem, Modal, Stack
 } from "@mantine/core";
 import { debounce } from "lodash";
 import { showNotification } from "@mantine/notifications";
 import { FaCheck, FaTimes } from "react-icons/fa";
+import { fetchUsersByType, archiveUser } from "../../services/userService";
+import { getAllDepartments, getDepartmentsByProgramme } from "../../services/roleService";
+import { showErrorNotification, showSuccessNotification } from "../../utils/errorHandler";
 
-const STATIC_STUDENTS = [
-    {
-        id: "21BCS030",
-        username: "21BCS030",
-        full_name: "ARJIT PATEL",
-        user_type: "student",
-        programme: "B.Tech",
-        discipline: "Computer Science and Engineering",
-        batch: 2021,
-        curr_semester_no: 8,
-        category: "GEN",
-        gender: "male"
-    },
-    {
-        id: "20BEE014",
-        username: "20BEE014",
-        full_name: "SNEHA GUPTA",
-        user_type: "student",
-        programme: "B.Tech",
-        discipline: "Electrical and Electronics Engineering",
-        batch: 2020,
-        curr_semester_no: 8,
-        category: "OBC",
-        gender: "female"
-    },
-    {
-        id: "22MCS007",
-        username: "22MCS007",
-        full_name: "RAHUL SINGH",
-        user_type: "student",
-        programme: "M.Tech",
-        discipline: "Computer Science and Engineering",
-        batch: 2022,
-        curr_semester_no: 2,
-        category: "GEN",
-        gender: "male"
-    },
-    {
-        id: "21BEC021",
-        username: "21BEC021",
-        full_name: "PRIYA VERMA",
-        user_type: "student",
-        programme: "B.Tech",
-        discipline: "Electronics and Communication Engineering",
-        batch: 2021,
-        curr_semester_no: 6,
-        category: "SC",
-        gender: "female"
-    },
-    {
-        id: "19BME013",
-        username: "19BME013",
-        full_name: "RITESH NAIR",
-        user_type: "student",
-        programme: "B.Tech",
-        discipline: "Mechanical Engineering",
-        batch: 2019,
-        curr_semester_no: 8,
-        category: "ST",
-        gender: "male"
-    },
-    {
-        id: "23MEE002",
-        username: "23MEE002",
-        full_name: "NEHA SHARMA",
-        user_type: "student",
-        programme: "M.Tech",
-        discipline: "Mechanical Engineering",
-        batch: 2023,
-        curr_semester_no: 1,
-        category: "GEN",
-        gender: "female"
-    },
-    {
-        id: "21BCS019",
-        username: "21BCS019",
-        full_name: "ADITYA RAO",
-        user_type: "student",
-        programme: "B.Tech",
-        discipline: "Computer Science and Engineering",
-        batch: 2021,
-        curr_semester_no: 6,
-        category: "GEN",
-        gender: "male"
-    },
-    {
-        id: "20BCE025",
-        username: "20BCE025",
-        full_name: "AARUSHI MEHTA",
-        user_type: "student",
-        programme: "B.Tech",
-        discipline: "Civil Engineering",
-        batch: 2020,
-        curr_semester_no: 7,
-        category: "OBC",
-        gender: "female"
-    },
-    {
-        id: "22PHDCSE01",
-        username: "22PHDCSE01",
-        full_name: "DR. TANVI DAS",
-        user_type: "student",
-        programme: "PhD",
-        discipline: "Computer Science and Engineering",
-        batch: 2022,
-        curr_semester_no: 3,
-        category: "GEN",
-        gender: "female"
-    },
-    {
-        id: "21BEE017",
-        username: "21BEE017",
-        full_name: "KARAN THAKUR",
-        user_type: "student",
-        programme: "B.Tech",
-        discipline: "Electrical and Electronics Engineering",
-        batch: 2021,
-        curr_semester_no: 5,
-        category: "SC",
-        gender: "male"
-    }
-];
 const InfoCard = ({ person, selectable, selected, onSelectChange }) => (
     <Card shadow="sm" radius="xl" withBorder p="lg" style={{ backgroundColor: "#fdfdfd" }}>
         <Group position="apart" align="flex-start">
@@ -179,6 +60,8 @@ const filterAndSearch = (data, filters, searchQuery) =>
 const ArchiveStudentPage = () => {
     const checkIcon = <FaCheck style={{ width: rem(20), height: rem(20) }} />;
 
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("archive");
     const [searchQuery, setSearchQuery] = useState("");
     const [filters, setFilters] = useState({
@@ -187,13 +70,60 @@ const ArchiveStudentPage = () => {
     const [selectedUsernames, setSelectedUsernames] = useState([]);
     const [modalOpened, setModalOpened] = useState(false);
     const [actionType, setActionType] = useState("");
+    const [processingAction, setProcessingAction] = useState(false);
+    const [personToAction, setPersonToAction] = useState(null);
+    const [departments, setDepartments] = useState([]);
+    const [loadingDepartments, setLoadingDepartments] = useState(false);
+
+    const fetchStudents = async () => {
+        setLoading(true);
+        try {
+            const data = await fetchUsersByType('student');
+            console.log('Fetched students data:', data);
+            setStudents(data || []);
+        } catch (error) {
+            console.error('Error fetching students:', error);
+            showErrorNotification(error, 'Fetch Error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchStudents();
+        // Don't fetch departments separately - we'll extract disciplines from student data
+    }, []);
+
+    const fetchDepartments = async (programme) => {
+        console.log('[ArchiveStudents] Fetching departments for programme:', programme);
+        if (!programme) {
+            setDepartments([]);
+            return;
+        }
+        setLoadingDepartments(true);
+        try {
+            // Use the new getDepartmentsByProgramme function
+            const data = await getDepartmentsByProgramme(programme);
+            console.log('[ArchiveStudents] Fetched departments:', data);
+            setDepartments(data || []);
+        } catch (error) {
+            console.error('Error fetching departments:', error);
+            setDepartments([]);
+        } finally {
+            setLoadingDepartments(false);
+        }
+    };
+
+    const handleProgrammeChange = (selectedProgrammes) => {
+        setFilters((prev) => ({ ...prev, programme: selectedProgrammes, discipline: [] })); // Clear discipline when programme changes
+    };
 
     const handleSearchChange = useMemo(() =>
         debounce((value) => setSearchQuery(value), 200), []);
 
     const filteredData = useMemo(() =>
-        filterAndSearch(STATIC_STUDENTS, filters, searchQuery),
-        [filters, searchQuery]
+        filterAndSearch(students, filters, searchQuery),
+        [students, filters, searchQuery]
     );
 
     const isSelected = (username) => selectedUsernames.includes(username);
@@ -214,18 +144,23 @@ const ArchiveStudentPage = () => {
         setModalOpened(true);
     };
 
-    const confirmAction = () => {
-        showNotification({
-            icon: checkIcon,
-            title: "Success",
-            position: "top-center",
-            withCloseButton: true,
-            autoClose: 5000,
-            message: `Marked selected students as "${actionType}"`,
-            color: "green",
-        });
-        clearSelection();
-        setModalOpened(false);
+    const confirmAction = async () => {
+        setProcessingAction(true);
+        try {
+            for (const username of selectedUsernames) {
+                await archiveUser(username);
+            }
+
+            showSuccessNotification(`${selectedUsernames.length} student(s) ${actionType === 'archive' ? 'archived' : 'restored'} successfully`);
+
+            await fetchStudents();
+            clearSelection();
+            setModalOpened(false);
+        } catch (error) {
+            showErrorNotification(error, 'Action Failed');
+        } finally {
+            setProcessingAction(false);
+        }
     };
 
     return (
@@ -250,99 +185,145 @@ const ArchiveStudentPage = () => {
             </Flex>
 
             <Paper shadow="lg" p="xl" radius="xl" withBorder>
-                <Tabs value={activeTab} onChange={setActiveTab} variant="pills" color="blue" radius="lg" keepMounted={false}>
-                    <Tabs.List grow mb="lg">
-                        <Tabs.Tab value="archive">ARCHIVE</Tabs.Tab>
-                        <Tabs.Tab value="archived">ARCHIVED</Tabs.Tab>
-                        <Tabs.Tab value="alumnis">ALUMNIS</Tabs.Tab>
-                    </Tabs.List>
+                {loading ? (
+                    <Center style={{ minHeight: 400 }}>
+                        <Stack align="center">
+                            <Loader size="xl" color="blue" />
+                            <Text color="dimmed">Loading students...</Text>
+                        </Stack>
+                    </Center>
+                ) : (
+                    <Tabs value={activeTab} onChange={setActiveTab} variant="pills" color="blue" radius="lg" keepMounted={false}>
+                        <Tabs.List grow mb="lg">
+                            <Tabs.Tab value="archive">ARCHIVE</Tabs.Tab>
+                            <Tabs.Tab value="archived">ARCHIVED</Tabs.Tab>
+                            <Tabs.Tab value="alumnis">ALUMNIS</Tabs.Tab>
+                        </Tabs.List>
 
-                    <Tabs.Panel value="archive">
-                        <Grid mb="lg">
-                            <Grid.Col span={12}>
-                                <TextInput
-                                    placeholder="🔍 Search students"
-                                    radius="md"
-                                    onChange={(e) => handleSearchChange(e.currentTarget.value)}
-                                />
-                            </Grid.Col>
-                            {["programme", "discipline", "batch", "semester", "category", "gender"].map((key) => (
-                                <Grid.Col span={6} key={key}>
-                                    <MultiSelect
-                                        label={key[0].toUpperCase() + key.slice(1)}
-                                        placeholder={`Filter by ${key}`}
-                                        value={filters[key]}
-                                        onChange={(value) => setFilters((prev) => ({ ...prev, [key]: value }))}
-                                        data={extractUnique(STATIC_STUDENTS, key)}
+                        <Tabs.Panel value="archive">
+                            <Grid mb="lg">
+                                <Grid.Col span={12}>
+                                    <TextInput
+                                        placeholder="🔍 Search students"
                                         radius="md"
-                                        searchable
-                                        clearable
+                                        onChange={(e) => handleSearchChange(e.currentTarget.value)}
                                     />
                                 </Grid.Col>
-                            ))}
-                        </Grid>
-
-                        <Group mb="md">
-                            <Button onClick={selectAll} variant="light">Select All</Button>
-                            <Button onClick={clearSelection} variant="default">Clear Selection</Button>
-                        </Group>
-
-                        <ScrollArea h={400}>
-                            <Grid>
-                                {filteredData.map((student) => (
-                                    <Grid.Col span={12} key={student.username}>
-                                        <InfoCard
-                                            person={student}
-                                            selectable
-                                            selected={isSelected(student.username)}
-                                            onSelectChange={toggleSelect}
-                                        />
+                                {["programme", "discipline", "batch", "semester", "category", "gender"].map((key) => (
+                                    <Grid.Col span={6} key={key}>
+                                        {key === "programme" ? (
+                                            <MultiSelect
+                                                label="Programme"
+                                                placeholder="Filter by programme"
+                                                value={filters.programme}
+                                                onChange={handleProgrammeChange}
+                                                data={extractUnique(students, key)}
+                                                radius="md"
+                                                searchable
+                                                clearable
+                                            />
+                                        ) : key === "discipline" ? (
+                                            <MultiSelect
+                                                label="Discipline"
+                                                placeholder="Select department"
+                                                value={filters.discipline}
+                                                onChange={(value) => setFilters((prev) => ({ ...prev, discipline: value }))}
+                                                data={extractUnique(students, 'discipline').filter(d => d && d !== 'null' && d !== 'undefined').map(d => ({ value: d, label: d }))}
+                                                radius="md"
+                                                searchable
+                                                clearable
+                                            />
+                                        ) : (
+                                            <MultiSelect
+                                                label={key[0].toUpperCase() + key.slice(1)}
+                                                placeholder={`Filter by ${key}`}
+                                                value={filters[key]}
+                                                onChange={(value) => setFilters((prev) => ({ ...prev, [key]: value }))}
+                                                data={extractUnique(students, key)}
+                                                radius="md"
+                                                searchable
+                                                clearable
+                                            />
+                                        )}
                                     </Grid.Col>
                                 ))}
                             </Grid>
-                        </ScrollArea>
 
-                        {selectedUsernames.length > 0 && (
-                            <Group mt="lg" position="right">
-                                <Button color="blue" onClick={() => handleAction("archived")}>Archive</Button>
-                                <Button color="teal" onClick={() => handleAction("alumni")}>Alumni</Button>
+                            <Group mb="md">
+                                <Button onClick={selectAll} variant="light">Select All</Button>
+                                <Button onClick={clearSelection} variant="default">Clear Selection</Button>
                             </Group>
-                        )}
-                    </Tabs.Panel>
 
-                    <Tabs.Panel value="archived">
-                        <Title order={3} mb="md">Recently Archived</Title>
-                        <Grid>
-                            {STATIC_STUDENTS.slice(0, 2).map((s) => (
-                                <Grid.Col span={12} key={s.username}>
-                                    <InfoCard person={s} />
-                                </Grid.Col>
-                            ))}
-                        </Grid>
-                    </Tabs.Panel>
+                            <ScrollArea h={400}>
+                                <Grid>
+                                    {filteredData.map((student) => (
+                                        <Grid.Col span={12} key={student.username}>
+                                            <InfoCard
+                                                person={student}
+                                                selectable
+                                                selected={isSelected(student.username)}
+                                                onSelectChange={toggleSelect}
+                                            />
+                                        </Grid.Col>
+                                    ))}
+                                </Grid>
+                            </ScrollArea>
 
-                    <Tabs.Panel value="alumnis">
-                        <Title order={3} mb="md">Recent Alumnis</Title>
-                        <Grid>
-                            {STATIC_STUDENTS.slice(2, 4).map((s) => (
-                                <Grid.Col span={12} key={s.username}>
-                                    <InfoCard person={s} />
-                                </Grid.Col>
-                            ))}
-                        </Grid>
-                    </Tabs.Panel>
-                </Tabs>
+                            {selectedUsernames.length > 0 && (
+                                <Group mt="lg" position="right">
+                                    <Button color="blue" onClick={() => handleAction("archived")}>Archive</Button>
+                                    <Button color="teal" onClick={() => handleAction("alumni")}>Alumni</Button>
+                                </Group>
+                            )}
+                        </Tabs.Panel>
+
+                        <Tabs.Panel value="archived">
+                            <Title order={3} mb="md">Recently Archived</Title>
+                            <Grid>
+                                {students.filter(s => !s.is_active).slice(0, 10).map((s) => (
+                                    <Grid.Col span={12} key={s.username}>
+                                        <InfoCard person={s} />
+                                    </Grid.Col>
+                                ))}
+                                {students.filter(s => !s.is_active).length === 0 && (
+                                    <Grid.Col span={12}>
+                                        <Text color="dimmed">No archived students found</Text>
+                                    </Grid.Col>
+                                )}
+                            </Grid>
+                        </Tabs.Panel>
+
+                        <Tabs.Panel value="alumnis">
+                            <Title order={3} mb="md">Recent Alumnis</Title>
+                            <Grid>
+                                {students.filter(s => !s.is_active).slice(0, 10).map((s) => (
+                                    <Grid.Col span={12} key={s.username}>
+                                        <InfoCard person={s} />
+                                    </Grid.Col>
+                                ))}
+                                {students.filter(s => !s.is_active).length === 0 && (
+                                    <Grid.Col span={12}>
+                                        <Text color="dimmed">No alumni found</Text>
+                                    </Grid.Col>
+                                )}
+                            </Grid>
+                        </Tabs.Panel>
+                    </Tabs>
+                )}
             </Paper>
 
             <Modal
                 opened={modalOpened}
-                onClose={() => setModalOpened(false)}
+                onClose={() => !processingAction && setModalOpened(false)}
                 title={`Confirm Marking as ${actionType.toUpperCase()}`}
+                closeOnClickOutside={!processingAction}
             >
-                <Text size="sm">Are you sure you want to mark the selected students as {actionType}?</Text>
+                <Text size="sm">Are you sure you want to mark {selectedUsernames.length} selected student(s) as {actionType}?</Text>
                 <Group mt="md" position="right">
-                    <Button variant="light" onClick={() => setModalOpened(false)}>Cancel</Button>
-                    <Button color="blue" onClick={confirmAction}>Confirm</Button>
+                    <Button variant="light" onClick={() => setModalOpened(false)} disabled={processingAction}>Cancel</Button>
+                    <Button color="blue" onClick={confirmAction} loading={processingAction}>
+                        {processingAction ? 'Processing...' : 'Confirm'}
+                    </Button>
                 </Group>
             </Modal>
         </Container>

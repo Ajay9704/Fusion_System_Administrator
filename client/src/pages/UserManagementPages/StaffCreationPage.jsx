@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     TextInput,
     Select,
@@ -6,217 +6,127 @@ import {
     Grid,
     Group,
     Box,
-    NumberInput,
-    Radio,
-    rem,
+    Text,
     Title,
     Divider,
     Progress,
     Flex,
     Paper,
 } from '@mantine/core';
-import { FaCheck, FaTimes } from 'react-icons/fa';
-import { notifications, showNotification } from '@mantine/notifications';
 import { DateInput } from '@mantine/dates';
-import { useMediaQuery } from "@mantine/hooks";
+import { useMediaQuery } from '@mantine/hooks';
 import { getAllDesignations, getAllDepartments } from '../../api/Roles';
 import { createStaff } from '../../api/Users';
+import { formatDateForAPI } from '../../utils/dateUtils';
+import { showErrorNotification, showSuccessNotification } from '../../utils/errorHandler';
+import { GENDER_OPTIONS } from '../../utils/constants';
+
+const REQUIRED_FIELDS = ['first_name', 'last_name', 'sex', 'designation', 'personal_email'];
+
+const EMPTY_FORM = {
+    username: '',
+    first_name: '',
+    last_name: '',
+    department: '',
+    title: '',
+    designation: '',
+    sex: '',
+    dob: null,
+    phone: '',
+    address: '',
+    personal_email: '',
+};
 
 const StaffCreationPage = () => {
-    const xIcon = <FaTimes style={{ width: rem(20), height: rem(20) }} />;
-    const checkIcon = <FaCheck style={{ width: rem(20), height: rem(20) }} />;
-
-    const [formValues, setFormValues] = useState({
-        username: '',
-        first_name: '',
-        last_name: '',
-        department: '',
-        title: '',
-        designation: '',
-        sex: '',
-        dob: null,
-        phone: '',
-        address: '',
-    });
-
-    const [progress, setProgress] = useState(0);
-    const [roles, setRoles] = useState([]);
+    const [formValues, setFormValues] = useState(EMPTY_FORM);
     const [departments, setDepartments] = useState([]);
+    const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
+    const matches = useMediaQuery('(min-width: 768px)');
 
-    useEffect(() => {
-        const totalFields = Object.keys(formValues).length;
-        const filledFields = Object.values(formValues).filter((value) => value).length;
-        setProgress((filledFields / totalFields) * 100);
-    }, [formValues]);
+    // Progress based only on required fields
+    const progress = (REQUIRED_FIELDS.filter(f => formValues[f]).length / REQUIRED_FIELDS.length) * 100;
 
     const handleChange = (field, value) => {
-        setFormValues((prev) => ({ ...prev, [field]: value }));
-        setErrorMessage('');
+        setFormValues(prev => ({ ...prev, [field]: value }));
     };
 
-    const fetchStaffDesignations = async () => {
-        try {
-            let all_designations = [];
-            const designationData = {
-                category: 'staff',
-                basic: true,
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [deptRes, desigRes] = await Promise.all([
+                    getAllDepartments(),
+                    getAllDesignations({ category: 'staff', basic: true }),
+                ]);
+                setDepartments(deptRes.map(d => ({ value: `${d.id}`, label: d.name })));
+                setRoles(desigRes.map(d => ({ value: `${d.id}`, label: d.name })));
+            } catch (error) {
+                showErrorNotification(error, 'Load Error');
             }
-            const response = await getAllDesignations(designationData);
-            console.log(response)
-            for(let i=0; i<response.length; i++){
-                all_designations[i] = {value: `${response[i].id}`, label: response[i].name}
-            }
-            setRoles(all_designations);
-        } catch (error) {
-            showNotification({
-                title: 'Error',
-                icon: xIcon,
-                position: "top-center",
-                withCloseButton: true,
-                message: 'An error occurred while fetching designations.',
-                color: 'red',
-            });
-        }
-    }
+        };
+        fetchData();
+    }, []);
 
-    const fetchDepartments = async () => {
-        try {
-            let all_departments = [];
-            const response = await getAllDepartments();
-            console.log(response)
-            for(let i=0; i<response.length; i++){
-                all_departments[i] = {value: `${response[i].id}`, label: response[i].name}
-            }
-            setDepartments(all_departments);
-        } catch (error) {
-            showNotification({
-                title: 'Error',
-                icon: xIcon,
-                position: "top-center",
-                withCloseButton: true,
-                message: 'An error occurred while fetching departments.',
-                color: 'red',
-            });
+    const handleSubmit = useCallback(async () => {
+        if (!formValues.personal_email?.trim()) {
+            showErrorNotification({ message: 'Personal email is required for credential delivery.' }, 'Validation Error');
+            return;
         }
-    }
-
-    const handleSubmit = async () => {
-        console.log(formValues)
-        try{
-            setLoading(true)
-            const response = await createStaff(formValues);
-            showNotification({
-                icon: checkIcon,
-                title: "Success",
-                position: "top-center",
-                withCloseButton: true,
-                autoClose: 5000,
-                message: "Staff Created Successfully.",
-                color: "green",
+        try {
+            setLoading(true);
+            await createStaff({
+                ...formValues,
+                dob: formatDateForAPI(formValues.dob),
             });
-            console.log('Form Submitted', formValues);
-            setFormValues({
-                username: '',
-                first_name: '',
-                last_name: '',
-                department: '',
-                title: '',
-                designation: '',
-                sex: '',
-                dob: null,
-                phone: '',
-                address: '',
-            });
-        } catch(error){
-            showNotification({
-                title: 'Error',
-                icon: xIcon,
-                position: "top-center",
-                withCloseButton: true,
-                message: 'An error occurred while creating staff.',
-                color: 'red',
-            });
+            showSuccessNotification('Staff created successfully.');
+            setFormValues(EMPTY_FORM);
+        } catch (error) {
+            showErrorNotification(error, 'Creation Error');
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(()=>{
-        fetchStaffDesignations();
-        fetchDepartments();
-    },[])
-
-    useEffect(() => {
-        const handleKeyDown = (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                handleSubmit();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
     }, [formValues]);
 
-    const matches = useMediaQuery('(min-width: 768px)');
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleSubmit]);
 
     return (
-        <Box maw={700} mx="auto" p="lg" shadow="sm" withborder>
+        <Box maw={700} mx="auto" p="lg">
             <Paper shadow="xl" radius="lg" p="xl">
-                <Flex
-                    gap="md"
-                    justify="center"
-                    align="center"
-                    direction="row"
-                    wrap="wrap"
-                >
-
+                <Flex justify="center" align="center" mb="md">
                     <Button
                         variant="gradient"
                         size="xl"
                         radius="xs"
-                        gradient={{ from: "blue", to: "cyan", deg: 90 }}
-                        w={matches && "500px"}
-                        style={{
-                            fontSize: "1.8rem",
-                            lineHeight: 1.2,
-                            marginBottom: "1rem",
-                        }}
+                        gradient={{ from: 'blue', to: 'cyan', deg: 90 }}
+                        w={matches ? '500px' : '100%'}
+                        style={{ fontSize: '1.8rem', lineHeight: 1.2 }}
                     >
-                        <Title
-                            order={1}
-                            align="center"
-                            style={{
-                                fontSize: "1.25rem",
-                                wordBreak: "break-word",
-                            }}
-                        >
+                        <Title order={1} align="center" style={{ fontSize: '1.25rem', wordBreak: 'break-word' }}>
                             Add Staff
                         </Title>
                     </Button>
                 </Flex>
 
                 <Divider my="sm" />
-
-                {/* Progress Bar */}
                 <Progress value={progress} color="blue" mb="md" />
 
                 <Grid gutter="md">
                     <Grid.Col span={12}>
                         <TextInput
                             label="Username"
-                            placeholder="Enter username(20 letters)"
+                            placeholder="Leave blank to auto-generate"
+                            description="Optional — auto-generated from first/last name if blank."
                             value={formValues.username}
                             onChange={(e) => handleChange('username', e.target.value)}
-                            required
                         />
                     </Grid.Col>
-                    {/* First Name */}
+
                     <Grid.Col span={6}>
                         <TextInput
                             label="First Name"
@@ -227,7 +137,6 @@ const StaffCreationPage = () => {
                         />
                     </Grid.Col>
 
-                    {/* Last Name */}
                     <Grid.Col span={6}>
                         <TextInput
                             label="Last Name"
@@ -238,77 +147,75 @@ const StaffCreationPage = () => {
                         />
                     </Grid.Col>
 
-                    {/* Department */}
-                    <Grid.Col span={12}>
-                        <Select
-                            label="Department"
-                            placeholder="Enter department"
-                            data={departments}
-                            value={`${formValues.department}`}
-                            onChange={(value) => handleChange('department', Number(value))}
-                        />
-                    </Grid.Col>
-
-                    {/* Title */}
                     <Grid.Col span={6}>
                         <Select
                             label="Title"
                             placeholder="Select title"
                             data={['Dr.', 'Mr.', 'Mrs.', 'Ms.']}
-                            value={formValues.title}
+                            value={formValues.title || null}
                             onChange={(value) => handleChange('title', value)}
                         />
                     </Grid.Col>
 
-                    {/* Designation */}
                     <Grid.Col span={6}>
                         <Select
                             label="Designation"
                             placeholder="Select designation"
                             data={roles}
-                            value={`${formValues.designation}`}
-                            onChange={(value) => handleChange('designation', Number(value))}
+                            value={formValues.designation ? `${formValues.designation}` : null}
+                            onChange={(value) => handleChange('designation', value)}
                             required
+                            searchable
                         />
                     </Grid.Col>
 
-                    {/* Gender */}
                     <Grid.Col span={12}>
-                        <Radio.Group
-                            label="Gender"
-                            value={formValues.sex}
-                            onChange={(value) => handleChange('sex', value)}
-                            required
-                            styles={{
-                                label: { marginRight: '1rem' },
-                            }}
-                        >
-                            <Group spacing="sm" position="apart" mt="xs">
-                                <Radio value="male" label="Male" />
-                                <Radio value="female" label="Female" />
-                                {/* <Radio value="other" label="Other" /> */}
-                            </Group>
-                        </Radio.Group>
+                        <Select
+                            label="Department"
+                            placeholder="Select department"
+                            data={departments}
+                            value={formValues.department ? `${formValues.department}` : null}
+                            onChange={(value) => handleChange('department', value)}
+                            searchable
+                        />
                     </Grid.Col>
 
-                    {/* Date of Birth */}
+                    <Grid.Col span={12}>
+                        <Text fw={500} size="sm">Gender *</Text>
+                        <Group spacing="sm" mt="xs">
+                            {GENDER_OPTIONS.map((option) => (
+                                <Button
+                                    key={option.value}
+                                    variant={formValues.sex === option.value ? 'filled' : 'light'}
+                                    color={formValues.sex === option.value ? 'blue' : 'gray'}
+                                    onClick={() => handleChange('sex', option.value)}
+                                    size="sm"
+                                    style={{
+                                        flex: 1,
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    {option.label}
+                                </Button>
+                            ))}
+                        </Group>
+                    </Grid.Col>
+
                     <Grid.Col span={6}>
                         <DateInput
-                            value={formValues.dob}
-                            onChange={(value) => handleChange('dob', value)}
                             label="Date of Birth"
                             placeholder="Pick a date"
+                            value={formValues.dob}
+                            onChange={(value) => handleChange('dob', value)}
                         />
                     </Grid.Col>
 
-                    {/* Phone Number */}
                     <Grid.Col span={6}>
-                        <NumberInput
+                        <TextInput
                             label="Phone Number"
                             placeholder="Enter phone number"
                             value={formValues.phone}
-                            onChange={(value) => handleChange('phone', value)}
-                            hideControls
+                            onChange={(e) => handleChange('phone', e.target.value)}
                         />
                     </Grid.Col>
 
@@ -320,18 +227,20 @@ const StaffCreationPage = () => {
                             onChange={(e) => handleChange('address', e.target.value)}
                         />
                     </Grid.Col>
+
+                    <Grid.Col span={12}>
+                        <TextInput
+                            label="Personal / Alternate Email"
+                            placeholder="Enter email for credential delivery"
+                            value={formValues.personal_email}
+                            onChange={(e) => handleChange('personal_email', e.target.value)}
+                            required
+                        />
+                    </Grid.Col>
                 </Grid>
 
-                {/* Create Button */}
-                <Flex
-                    gap="md"
-                    justify="center"
-                    align="center"
-                    direction="row"
-                    wrap="wrap"
-                    mt="xl"
-                >
-                    <Button onClick={handleSubmit} color="blue" size="md">
+                <Flex justify="center" mt="xl">
+                    <Button onClick={handleSubmit} color="blue" size="md" loading={loading} fullWidth>
                         Add Staff
                     </Button>
                 </Flex>

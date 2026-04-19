@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMediaQuery } from "@mantine/hooks";
-import { FaUserAlt, FaClone, FaBook, FaSignOutAlt, FaUserGraduate, FaChalkboardTeacher, FaUsersCog, FaKey, FaUserShield, FaTasks, FaEdit, FaArchive as FaArchiveIcon, FaClipboardList } from "react-icons/fa";
-import { Tooltip, Flex, Modal, Button, Paper, Text, Group, Avatar } from "@mantine/core";
+import { FaUserAlt, FaClone, FaBook, FaSignOutAlt, FaUserGraduate, FaChalkboardTeacher, FaUsersCog, FaKey, FaUserShield, FaTasks, FaEdit, FaArchive as FaArchiveIcon, FaClipboardList, FaBuilding, FaShieldAlt } from "react-icons/fa";
+import { Tooltip, Flex, Modal, Button, Paper, Text, Group } from "@mantine/core";
 import { useAuth } from '../../context/AuthContext';
 
 const MANTINE_BLUE = "#228be6";
@@ -76,6 +76,22 @@ const Sidebar = () => {
       isPrimary: true,
       action: () => navigate("/AuditLogs"),
     },
+    {
+      label: "Department Management",
+      icon: <FaBuilding size={24} />,
+      menuKey: "department",
+      height: "10%",
+      isPrimary: true,
+      action: () => navigate("/DepartmentManagement"),
+    },
+    {
+      label: "Emergency Access",
+      icon: <FaShieldAlt size={24} />,
+      menuKey: "emergency",
+      height: "10%",
+      isPrimary: true,
+      action: () => navigate("/EmergencyAccess"),
+    },
   ];
 
   return (
@@ -93,30 +109,6 @@ const Sidebar = () => {
           boxShadow: "-3px 0 10px rgba(0, 0, 0, 0.1)",
         }}
       >
-        {/* User Info Display */}
-        {user && !isSmallScreen && (
-          <Paper 
-            p="xs" 
-            mb="md"
-            withBorder 
-            style={{ width: '90%', marginTop: '10px' }}
-          >
-            <Group spacing="xs" position="center">
-              <Avatar color="blue" size="sm">
-                {user?.username?.charAt(0).toUpperCase()}
-              </Avatar>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Text size="xs" weight={500} truncate>
-                  {user?.username}
-                </Text>
-                <Text size="xs" color="dimmed" truncate>
-                  {user?.roles?.[0] || 'User'}
-                </Text>
-              </div>
-            </Group>
-          </Paper>
-        )}
-
         {menuItems.map(({ label, icon, path, menuKey, subItems, isPrimary, height, isDashboard, isLogout, action }) => (
           <div
             key={label}

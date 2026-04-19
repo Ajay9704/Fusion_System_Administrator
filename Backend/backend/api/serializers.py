@@ -80,14 +80,16 @@ class ViewStudentsWithFiltersSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     programme = serializers.CharField()
     batch = serializers.IntegerField()
+    curr_semester_no = serializers.IntegerField()
     discipline = serializers.SerializerMethodField()
     user_type = serializers.SerializerMethodField()
     category = serializers.CharField()
     gender = serializers.CharField(source='id.sex')
+    is_active = serializers.BooleanField(source='id.user.is_active')
 
     class Meta:
         model = Student
-        fields = ['id', 'username', 'full_name', 'user_type', 'programme', 'discipline', 'batch', 'curr_semester_no', 'category', 'gender']
+        fields = ['id', 'username', 'full_name', 'user_type', 'programme', 'discipline', 'batch', 'curr_semester_no', 'category', 'gender', 'is_active']
     
     def get_full_name(self, obj):
         return f"{obj.id.user.first_name} {obj.id.user.last_name}".strip()
@@ -106,10 +108,11 @@ class ViewStaffWithFiltersSerializer(serializers.ModelSerializer):
     user_type = serializers.SerializerMethodField()
     gender = serializers.CharField(source='id.sex', default=None)
     designations = serializers.SerializerMethodField()
+    is_active = serializers.BooleanField(source='id.user.is_active')
 
     class Meta:
         model = Staff
-        fields = ['id', 'username', 'full_name', 'user_type', 'gender', 'designations']
+        fields = ['id', 'username', 'full_name', 'user_type', 'gender', 'designations', 'is_active']
     
     def get_full_name(self, obj):
         return f"{obj.id.user.first_name} {obj.id.user.last_name}".strip()
@@ -130,10 +133,11 @@ class ViewFacultyWithFiltersSerializer(serializers.ModelSerializer):
     designations = serializers.SerializerMethodField()
     user_type = serializers.SerializerMethodField()
     gender = serializers.CharField(source='id.sex', default=None)
+    is_active = serializers.BooleanField(source='id.user.is_active')
 
     class Meta:
         model = GlobalsFaculty
-        fields = ['id', 'username', 'full_name', 'user_type', 'department', 'designations', 'gender']
+        fields = ['id', 'username', 'full_name', 'user_type', 'department', 'designations', 'gender', 'is_active']
     
     def get_full_name(self, obj):
         return f"{obj.id.user.first_name} {obj.id.user.last_name}".strip()

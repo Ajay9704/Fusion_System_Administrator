@@ -1,13 +1,23 @@
 {
-  "name": "vite-project",
+  "name": "fusion-system-administrator",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "Enterprise Fusion System Administrator - Production Ready",
+  "author": "IIITDM Jabalpur",
+  "license": "MIT",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "build:analyze": "vite build --mode analyze",
+    "build:production": "vite build --mode production",
+    "preview": "vite preview --host",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,css,md}\"",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules/.vite",
+    "preview:dist": "serve -s dist -l 3000"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -20,6 +30,7 @@
     "@mantine/notifications": "^7.13.3",
     "@tabler/icons-react": "^3.41.1",
     "axios": "^1.7.7",
+    "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "firebase": "^11.0.2",
     "framer-motion": "^11.11.9",
@@ -44,6 +55,27 @@
     "postcss": "^8.4.47",
     "postcss-preset-mantine": "^1.17.0",
     "postcss-simple-vars": "^7.0.1",
-    "vite": "^5.4.9"
+    "prettier": "^3.1.1",
+    "rollup-plugin-visualizer": "^5.11.0",
+    "serve": "^14.2.1",
+    "terser": "^5.26.0",
+    "vite": "^5.4.9",
+    "vite-plugin-compression": "^0.5.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

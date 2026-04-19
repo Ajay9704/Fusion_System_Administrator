@@ -6,14 +6,18 @@ import {
   Flex,
   Divider,
   Paper,
+  Group,
 } from "@mantine/core";
-import { FaCheck, FaDiceD6, FaTimes } from "react-icons/fa";
+import { FaCheck, FaDiceD6, FaTimes, FaUpload } from "react-icons/fa";
 import { rem } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
 import { useMediaQuery } from "@mantine/hooks";
-import { getAllDepartments, getAllBatches } from '../../services/roleService';
+import { getAllDepartments, getDepartmentsByProgramme, getAllBatches } from '../../services/roleService';
 import { createStudent, bulkUploadUsers, downloadSampleCSV } from "../../services/userService";
 import StudentForm from '../../components/forms/StudentForm';
+import BulkUploadModal from '../../components/BulkUploadModal/BulkUploadModal';
+import { formatDateForAPI } from '../../utils/dateUtils';
+import { getErrorMessage, showErrorNotification, showSuccessNotification } from '../../utils/errorHandler';
 
 const StudentCreationPage = () => {
   const xIcon = <FaTimes style={{ width: rem(20), height: rem(20) }} />;
@@ -35,10 +39,12 @@ const StudentCreationPage = () => {
     dob: null,
     phone: '',
     address: '',
+    personal_email: '',
   });
 
   const [departments, setDepartments] = useState([]);
   const [batches, setBatches] = useState([]);
+  const [bulkUploadModalOpen, setBulkUploadModalOpen] = useState(false);
 
   const matches = useMediaQuery("(min-width: 768px)");
 
@@ -47,23 +53,28 @@ const StudentCreationPage = () => {
     fetchBatches();
   }, []);
 
-  const fetchDepartments = async () => {
+  const fetchDepartments = async (programme = null) => {
     try {
-      let all_departments = [];
-      const response = await getAllDepartments();
-      for(let i=0; i<response.length; i++){
-        all_departments[i] = {value: `${response[i].id}`, label: response[i].name}
+      let response;
+      if (programme) {
+        response = await getDepartmentsByProgramme(programme);
+      } else {
+        response = await getAllDepartments();
       }
+      const all_departments = response.map(d => ({ value: `${d.id}`, label: d.name }));
       setDepartments(all_departments);
     } catch (error) {
-      showNotification({
-        title: 'Error',
-        icon: xIcon,
-        position: "top-center",
-        withCloseButton: true,
-        message: 'An error occurred while fetching departments.',
-        color: 'red',
-      });
+      // If filtered fetch fails, fall back to all departments
+      if (programme) {
+        try {
+          const fallback = await getAllDepartments();
+          setDepartments(fallback.map(d => ({ value: `${d.id}`, label: d.name })));
+        } catch (e) {
+          showErrorNotification(e, 'Department Error');
+        }
+      } else {
+        showErrorNotification(error, 'Department Error');
+      }
     }
   }
 
@@ -71,34 +82,32 @@ const StudentCreationPage = () => {
     try {
       let all_batches = [];
       const response = await getAllBatches();
-      for(let i=0; i<response.length; i++){
-        all_batches[i] = `${response[i].year}`
+      // Create unique options based on year to avoid duplicates
+      const uniqueYears = [...new Set(response.map(batch => batch.year))];
+      for(let i=0; i<uniqueYears.length; i++){
+        all_batches[i] = {value: `${uniqueYears[i]}`, label: `${uniqueYears[i]}`}
       }
       setBatches(all_batches);
     } catch (error) {
-      showNotification({
-        title: 'Error',
-        icon: xIcon,
-        position: "top-center",
-        withCloseButton: true,
-        message: 'An error occurred while fetching batches.',
-        color: 'red',
-      });
+      showErrorNotification(error, 'Batch Error');
     }
   }
+
+  const handleProgrammeChange = async (value) => {
+    setFormValues((prev) => ({
+      ...prev,
+      programme: value,
+      // Don't clear department - let the form handle constraint validation
+    }));
+
+    await fetchDepartments(value);
+  };
 
   const handleDownloadSampleCSV = async () => {
     try {
       await downloadSampleCSV();
     } catch (error) {
-      showNotification({
-        title: 'Error',
-        icon: xIcon,
-        position: "top-center",
-        withCloseButton: true,
-        message: 'Failed to download sample CSV',
-        color: 'red',
-      });
+      showErrorNotification(error, 'Download Error');
     }
   };
 
@@ -110,23 +119,43 @@ const StudentCreationPage = () => {
         formData.append('file', file);
         response = await bulkUploadUsers(formData);
       }
-      else response = await createStudent(formValues);
+      else {
+        if (!formValues.personal_email || !formValues.personal_email.trim()) {
+          showErrorNotification({ message: 'Personal email is required for credential delivery.' }, 'Validation Error');
+          return;
+        }
+
+        // Prepare form values for API
+        const formattedValues = {
+          ...formValues,
+          dob: formatDateForAPI(formValues.dob),
+        };
+
+        // Handle username generation - if empty or whitespace, remove it so backend can auto-generate
+        if (!formattedValues.username || !formattedValues.username.trim()) {
+          delete formattedValues.username;
+        } else {
+          // Clean up username if provided
+          formattedValues.username = formattedValues.username.trim();
+        }
+
+        // Remove empty values to avoid validation issues
+        Object.keys(formattedValues).forEach(key => {
+          if (formattedValues[key] === '' || formattedValues[key] === null) {
+            delete formattedValues[key];
+          }
+        });
+
+        response = await createStudent(formattedValues);
+      }
 
       if(response.skipped_users_count > 0){
         const csvUrl = URL.createObjectURL(new Blob([response.skipped_users_csv], {type: 'text/csv'}));
         downloadCSV(csvUrl, 'skipped_users.csv');
       }
       
-      showNotification({
-        icon: checkIcon,
-        title: "Success",
-        position: "top-center",
-        withCloseButton: true,
-        autoClose: 5000,
-        message: `${response.created_users.length} Student has been Created Successfully.\n${response.skipped_users_count ? `${response.skipped_users_count} User skipped.` : ''}`,
-        color: "green",
-      });
-      
+      showSuccessNotification(`${response.created_users.length} Student(s) created successfully.${response.skipped_users_count ? ` ${response.skipped_users_count} user(s) skipped.` : ''}`);
+
       // Reset form only if single student creation
       if (!file) {
         setFormValues({
@@ -145,23 +174,11 @@ const StudentCreationPage = () => {
           dob: null,
           phone: '',
           address: '',
+          personal_email: '',
         });
       }
     } catch (err) {
-      const errorMessage = err.response
-        ? `${JSON.stringify(err.response.data.error) || JSON.stringify(err.response.data.data) || JSON.stringify(err.response.data.message)}`
-        : err.request
-        ? "No response received from the server"
-        : `${err.message}`;
-
-      showNotification({
-        title: "Error",
-        icon: xIcon,
-        position: "top-center",
-        withCloseButton: true,
-        message: errorMessage,
-        color: "red",
-      });
+      showErrorNotification(err, 'Creation Error');
     }
   };
 
@@ -176,7 +193,7 @@ const StudentCreationPage = () => {
   };
 
   return (
-    <Box maw={700} mx="auto" p="lg" shadow="sm" withBorder>
+    <Box maw={700} mx="auto" p="lg" shadow="sm">
       <Paper shadow="xl" radius="lg" p="xl">
         <Flex
           gap="md"
@@ -217,9 +234,18 @@ const StudentCreationPage = () => {
           onSubmit={handleSubmit}
           departments={departments}
           batches={batches}
+          onProgrammeChange={handleProgrammeChange}
           onDownloadSampleCSV={handleDownloadSampleCSV}
+          onOpenBulkUpload={() => setBulkUploadModalOpen(true)}
         />
       </Paper>
+
+      <BulkUploadModal
+        opened={bulkUploadModalOpen}
+        onClose={() => setBulkUploadModalOpen(false)}
+        onUpload={bulkUploadUsers}
+        onDownloadSample={handleDownloadSampleCSV}
+      />
     </Box>
   );
 };

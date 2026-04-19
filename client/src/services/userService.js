@@ -56,10 +56,16 @@ export const downloadSampleCSV = async () => {
 };
 
 export const fetchUsersByType = async (type) => {
-  const response = await apiClient.get('/users', {
-    params: { type },
-  });
-  return response.data;
+  try {
+    const response = await apiClient.get('/users/', {
+      params: { type },
+    });
+    console.log(`fetchUsersByType(${type}) response:`, response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`fetchUsersByType(${type}) error:`, error);
+    throw error;
+  }
 };
 
 export const deleteUser = async (userId) => {
@@ -69,5 +75,25 @@ export const deleteUser = async (userId) => {
 
 export const updateUser = async (userId, userData) => {
   const response = await apiClient.put(`/users/${userId}/`, userData);
+  return response.data;
+};
+
+/**
+ * Archive a user (deactivate their account)
+ * @param {string} username - The username to archive
+ * @returns {Promise} Response data
+ */
+export const archiveUser = async (username) => {
+  const response = await apiClient.post(`/users/${username}/archive/`);
+  return response.data;
+};
+
+/**
+ * Restore a previously archived user
+ * @param {string} username - The username to restore
+ * @returns {Promise} Response data
+ */
+export const restoreUser = async (username) => {
+  const response = await apiClient.post(`/users/${username}/restore/`);
   return response.data;
 };

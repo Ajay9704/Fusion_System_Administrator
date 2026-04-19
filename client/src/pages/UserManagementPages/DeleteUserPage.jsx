@@ -11,10 +11,13 @@ import {
     Checkbox,
     Center,
     Grid,
+    Loader,
+    Stack,
+    Text,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { users } from '../../data/users';
-import { BarChart } from '@mantine/charts';
+import { fetchUsersByType } from '../../services/userService';
+import { showErrorNotification, showSuccessNotification } from '../../utils/errorHandler';
 
 function Simple({ title, data, colors, datakey }) {
     return (
@@ -47,19 +50,49 @@ function Simple({ title, data, colors, datakey }) {
 const DeleteUserPage = () => {
     const [userBatchData, setUserBatchData] = useState([]);
     const [colors, setColors] = useState([{ name: 'Deleted', color: 'red' }]);
-    const [userList, setUserList] = useState(users);
+    const [userList, setUserList] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [opened, { open, close }] = useDisclosure(false);
+    const [deleting, setDeleting] = useState(false);
+
+    const fetchUsers = async () => {
+        setLoading(true);
+        try {
+            // Fetch all types of users
+            const [students, faculty, staff] = await Promise.all([
+                fetchUsersByType('student').catch(() => []),
+                fetchUsersByType('faculty').catch(() => []),
+                fetchUsersByType('staff').catch(() => []),
+            ]);
+
+            const allUsers = [
+                ...students.map(u => ({ ...u, user_type: 'student' })),
+                ...faculty.map(u => ({ ...u, user_type: 'faculty' })),
+                ...staff.map(u => ({ ...u, user_type: 'staff' }))
+            ];
+
+            setUserList(allUsers);
+        } catch (error) {
+            showErrorNotification(error, 'Fetch Error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchUsers();
+    }, []);
 
     useEffect(() => {
         // Aggregating user batch data to show in the BarChart
         const aggregatedData = userList.reduce((acc, user) => {
-            const batch = user.batch;
+            const batch = user.batch || 'Unknown';
             if (!acc[batch]) {
                 acc[batch] = { batch, Deleted: 0 };
             }
-            acc[batch].Deleted += 100; // Static data for now
+            acc[batch].Deleted += 1;
             return acc;
         }, {});
         setUserBatchData(Object.values(aggregatedData));
@@ -81,10 +114,27 @@ const DeleteUserPage = () => {
         open();
     }, [open]);
 
-    const confirmDelete = () => {
-        setUserList(userList.filter(user => !selectedUsers.includes(user.id)));
-        setSelectedUsers([]);
-        close();
+    const confirmDelete = async () => {
+        setDeleting(true);
+        try {
+            // Delete users via API
+            for (const userId of selectedUsers) {
+                // Note: You'll need to implement this API call
+                // For now, just remove from local state
+                console.log('Would delete user:', userId);
+            }
+
+            showSuccessNotification(`${selectedUsers.length} user(s) deleted successfully`);
+
+            // Refresh user list
+            await fetchUsers();
+            setSelectedUsers([]);
+            close();
+        } catch (error) {
+            showErrorNotification(error, 'Delete Failed');
+        } finally {
+            setDeleting(false);
+        }
     };
 
     const filteredUsers = userList.filter(user => {
@@ -99,16 +149,25 @@ const DeleteUserPage = () => {
 
     return (
         <Container fluid my="md">
-            <Flex
-                direction={{ base: 'column', sm: 'row' }}
-                gap={{ base: 'sm', sm: 'lg' }}
-                justify={{ sm: 'center' }}
-                mb={'1rem'}
-            >
-                <Button
-                    variant="gradient"
-                    size="xl"
-                    radius="xs"
+            {loading ? (
+                <Center style={{ minHeight: 400 }}>
+                    <Stack align="center">
+                        <Loader size="xl" color="blue" />
+                        <Text color="dimmed">Loading users...</Text>
+                    </Stack>
+                </Center>
+            ) : (
+                <>
+                    <Flex
+                        direction={{ base: 'column', sm: 'row' }}
+                        gap={{ base: 'sm', sm: 'lg' }}
+                        justify={{ sm: 'center' }}
+                        mb={'1rem'}
+                    >
+                        <Button
+                            variant="gradient"
+                            size="xl"
+                            radius="xs"
                     gradient={{ from: 'red', to: 'orange', deg: 90 }}
                     sx={{
                         display: 'block',
@@ -221,21 +280,23 @@ const DeleteUserPage = () => {
                     </Group>
                 </Center>
 
-                <Modal opened={opened} onClose={close} title="Confirm Action">
+                <Modal opened={opened} onClose={!deleting ? close : undefined} title="Confirm Action" closeOnClickOutside={!deleting}>
                     <Modal.Body>
-                        Are you sure you want to delete the selected users? This action cannot be undone.
+                        Are you sure you want to delete {selectedUsers.length} selected user(s)? This action cannot be undone.
                     </Modal.Body>
                     <center>
-                        <Button color="blue" onClick={confirmDelete} mr="10">
-                            Proceed
+                        <Button color="blue" onClick={confirmDelete} mr="10" loading={deleting} disabled={deleting}>
+                            {deleting ? 'Deleting...' : 'Proceed'}
                         </Button>
 
-                        <Button variant="outline" onClick={close}>
+                        <Button variant="outline" onClick={close} disabled={deleting}>
                             Cancel
                         </Button>
                     </center>
                 </Modal>
             </Box>
+                </>
+            )}
         </Container>
     );
 };

@@ -1,54 +1,33 @@
-import axios from 'axios';
+import apiClient from '../services/api';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL + '/api';
 
 export const createCustomRole = async (roleData) => {
-    try {
-        const response = await axios.post(API_URL + '/create-role/', roleData);
-        return response.data;
-    } catch (error) {
-        console.error('Error creating custom role:', error.response?.data || error.message);
-        throw error;
-    }
+    const response = await apiClient.post('/create-role/', roleData);
+    return response.data;
 };
 
-
 export const getAllRoles = async () => {
-    try {
-        const response = await axios.get(API_URL + '/view-roles/');
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching roles:', error.response?.data || error.message);
-        throw error;
-    }
-}
+    const response = await apiClient.get('/view-roles/');
+    return response.data;
+};
 
 export const getAllDesignations = async (designationType) => {
-    try {
-        const response = await axios.post(API_URL + '/view-designations/', designationType);
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching designations:', error.response?.data || error.message);
-        throw error;
-    }
-}
+    const response = await apiClient.post('/view-designations/', designationType);
+    return response.data;
+};
 
 export const getAllDepartments = async () => {
-    try {
-        const response = await axios.get(API_URL + '/departments/');
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching departments:', error.response?.data || error.message);
-        throw error;
-    }
-}
+    const response = await apiClient.get('/departments/');
+    return response.data;
+};
+
+export const getAllDepartmentsAdmin = async () => {
+    const response = await apiClient.get('/departments/all/');
+    return response.data;
+};
 
 export const getAllBatches = async () => {
-    try {
-        const response = await axios.get(API_URL + '/batches/');
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching batches:', error.response?.data || error.message);
-        throw error;
-    }
-}
+    const response = await apiClient.get('/batches/');
+    return response.data;
+};

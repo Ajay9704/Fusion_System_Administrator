@@ -1,14 +1,115 @@
 """
 Audit logging decorator and helper functions for tracking admin actions.
+Enhanced with human-readable descriptions following ERP standards.
 """
 from functools import wraps
 from django.utils import timezone
 from .models import AuditLog
 
 
+# ERP-standard action descriptions mapping
+ACTION_DESCRIPTIONS = {
+    # User Management Actions
+    'CREATE_STUDENT': 'Student Created',
+    'UPDATE_STUDENT': 'Student Information Updated',
+    'DELETE_STUDENT': 'Student Deleted',
+    'ARCHIVE_STUDENT': 'Student Archived',
+    'RESTORE_STUDENT': 'Student Account Restored',
+    'RESET_PASSWORD': 'Password Reset Initiated',
+    'CHANGE_PASSWORD': 'Password Changed',
+
+    'CREATE_FACULTY': 'Faculty Member Created',
+    'UPDATE_FACULTY': 'Faculty Information Updated',
+    'DELETE_FACULTY': 'Faculty Member Deleted',
+    'ARCHIVE_FACULTY': 'Faculty Archived',
+    'RESTORE_FACULTY': 'Faculty Account Restored',
+
+    'CREATE_STAFF': 'Staff Member Created',
+    'UPDATE_STAFF': 'Staff Information Updated',
+    'DELETE_STAFF': 'Staff Member Deleted',
+    'ARCHIVE_STAFF': 'Staff Archived',
+    'RESTORE_STAFF': 'Staff Account Restored',
+
+    # Role Management Actions
+    'CREATE_ROLE': 'Role Created',
+    'UPDATE_ROLE': 'Role Updated',
+    'DELETE_ROLE': 'Role Deleted',
+    'ASSIGN_ROLE': 'Role Assigned',
+    'REMOVE_ROLE': 'Role Removed',
+    'UPDATE_USER_ROLES': 'User Roles Updated',
+
+    # System Actions
+    'BULK_UPLOAD': 'Bulk User Upload',
+    'DATA_EXPORT': 'Data Exported',
+    'SETTINGS_CHANGE': 'System Settings Changed',
+    'LOGIN': 'User Login',
+    'LOGOUT': 'User Logout',
+    'FAILED_LOGIN': 'Failed Login Attempt',
+
+    # Emergency Access
+    'EMERGENCY_ACCESS_GRANTED': 'Emergency Access Granted',
+    'EMERGENCY_ACCESS_REVOKED': 'Emergency Access Revoked',
+    'HANDOVER_DOCUMENTATION': 'Emergency Access Handover',
+}
+
+
+def get_human_readable_action(action, model_name=None, details=None):
+    """
+    Generate human-readable action descriptions following ERP standards.
+
+    Args:
+        action: The action code (e.g., 'CREATE_STUDENT')
+        model_name: Optional model name for context
+        details: Optional dictionary with additional context
+
+    Returns:
+        Human-readable description string
+    """
+    base_description = ACTION_DESCRIPTIONS.get(action, action.replace('_', ' ').title())
+
+    # Add model context if available
+    if model_name:
+        model_display = {
+            'AuthUser': 'User Account',
+            'Student': 'Student Profile',
+            'GlobalsFaculty': 'Faculty Member',
+            'Staff': 'Staff Member',
+            'GlobalsDesignation': 'Role/Designation',
+            'GlobalsHoldsdesignation': 'Role Assignment'
+        }.get(model_name, model_name)
+        base_description = f"{base_description} - {model_display}"
+
+    # Add specific details based on action type
+    if details:
+        if action == 'UPDATE_USER_ROLES' and 'roles' in details:
+            role_count = len(details['roles']) if isinstance(details['roles'], list) else 1
+            base_description += f" ({role_count} role{'s' if role_count > 1 else ''} assigned)"
+
+        if action in ['CREATE_STUDENT', 'CREATE_FACULTY', 'CREATE_STAFF'] and 'username' in details:
+            base_description += f" - Username: {details['username']}"
+
+        if action == 'RESET_PASSWORD' and 'username' in details:
+            base_description += f" - Password reset sent to {details['username']}"
+
+        if action == 'ARCHIVE_' + '_'.join(action.split('_')[1:]) and 'username' in details:
+            base_description += f" - User: {details['username']}"
+
+    return base_description
+
+
+def get_status_emoji(status):
+    """Return emoji for status"""
+    return {
+        'SUCCESS': '✅',
+        'FAILED': '❌',
+        'PENDING': '⏳',
+        'WARNING': '⚠️'
+    }.get(status, '📝')
+
+
 def audit_log(action, model_name=None, include_response=False):
     """
-    Decorator to log admin actions automatically.
+    Enhanced decorator to log admin actions automatically with human-readable descriptions.
 
     Usage:
         @audit_log(action='CREATE_USER', model_name='AuthUser')
@@ -42,41 +143,50 @@ def audit_log(action, model_name=None, include_response=False):
                 except:
                     pass
 
-            # Create audit log entry
+            # Create enhanced audit log entry
             try:
-                description = f"{action} - Status: {status_code}"
+                # Generate human-readable description
+                description = get_human_readable_action(
+                    action=action,
+                    model_name=model_name,
+                    details=request.data if hasattr(request, 'data') else None
+                )
 
-                # Log request method and path
-                if hasattr(request, 'method'):
-                    description += f" | Method: {request.method}"
-                if hasattr(request, 'path'):
-                    description += f" | Path: {request.path}"
+                # Add status information
+                status = 'SUCCESS' if is_success else 'FAILED'
+                status_emoji = get_status_emoji(status)
+                description = f"{status_emoji} {description}"
 
-                # Log key information from request
-                if hasattr(request, 'data') and request.data:
-                    # Log key information from request
-                    if 'username' in request.data:
-                        description += f" | Target Username: {request.data.get('username')}"
-                    if 'name' in request.data:
-                        description += f" | Name: {request.data.get('name')}"
-                    if 'reason' in request.data:
-                        description += f" | Reason: {request.data.get('reason')}"
-                    if 'roles' in request.data:
-                        description += f" | Roles: {request.data.get('roles')}"
+                # Add timestamp context
+                timestamp_str = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
 
-                # Log response data if requested
-                if include_response and hasattr(response, 'data'):
-                    description += f" | Response: {str(response.data)[:200]}"
+                # Add additional context for failed operations
+                if not is_success:
+                    description += f" | HTTP {status_code}"
+                    if hasattr(response, 'data') and isinstance(response.data, dict):
+                        error_msg = response.data.get('error') or response.data.get('message', '')
+                        if error_msg:
+                            description += f" | Error: {error_msg}"
+
+                # Add user context
+                if user:
+                    username = getattr(user, 'username', 'Unknown')
+                    description += f" | Performed by: {username}"
+
+                # Add IP address for security tracking
+                ip_address = get_client_ip(request)
+                if ip_address:
+                    description += f" | IP: {ip_address}"
 
                 AuditLog.objects.create(
                     user=user,
                     action=action,
                     model_name=model_name,
                     description=description,
-                    ip_address=get_client_ip(request),
+                    ip_address=ip_address,
                     user_agent=get_user_agent(request),
                     reason=request.data.get('reason', '') if hasattr(request, 'data') else '',
-                    status='SUCCESS' if is_success else 'FAILED'
+                    status=status
                 )
             except Exception as e:
                 # Don't let audit logging failures break the actual operation
