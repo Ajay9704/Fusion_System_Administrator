@@ -68,6 +68,14 @@ def audit_log(action, model_name=None, include_response=False):
                 if include_response and hasattr(response, 'data'):
                     description += f" | Response: {str(response.data)[:200]}"
 
+                # Get reason safely
+                reason = ''
+                try:
+                    if hasattr(request, 'data') and request.data:
+                        reason = request.data.get('reason', '')
+                except:
+                    reason = ''
+
                 AuditLog.objects.create(
                     user=user,
                     action=action,
@@ -75,7 +83,7 @@ def audit_log(action, model_name=None, include_response=False):
                     description=description,
                     ip_address=get_client_ip(request),
                     user_agent=get_user_agent(request),
-                    reason=request.data.get('reason', '') if hasattr(request, 'data') else '',
+                    reason=reason,
                     status='SUCCESS' if is_success else 'FAILED'
                 )
             except Exception as e:

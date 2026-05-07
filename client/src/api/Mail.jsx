@@ -1,10 +1,8 @@
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_BACKEND_URL + '/api';
+import apiClient from '../services/api';
 
 export const mailBatch = async (batch) => {
     try {
-        const response = await axios.post(API_URL + '/users/mail-batch/', {
+        const response = await apiClient.post('/users/mail-batch/', {
             batch: batch,
         });
         return response.data;

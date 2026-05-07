@@ -1,36 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMediaQuery } from "@mantine/hooks";
-import { FaUserAlt, FaClone, FaBook, FaSignOutAlt, FaUserGraduate, FaChalkboardTeacher, FaUsersCog, FaKey, FaUserShield, FaTasks, FaEdit, FaArchive as FaArchiveIcon, FaClipboardList } from "react-icons/fa";
-import { Tooltip, Flex, Modal, Button, Paper, Text, Group, Avatar } from "@mantine/core";
-import { useAuth } from '../../context/AuthContext';
+import { FaUserAlt, FaClone, FaBook, FaUserGraduate, FaChalkboardTeacher, FaUsersCog, FaKey, FaUserShield, FaTasks, FaEdit, FaArchive as FaArchiveIcon, FaClipboardList, FaShieldAlt, FaHourglassHalf } from "react-icons/fa";
+import { Tooltip, Flex } from "@mantine/core";
+import ProfileHeader from '../ProfileHeader/ProfileHeader';
 
 const MANTINE_BLUE = "#228be6";
 const MANTINE_DARK_BLUE = "#1c7ed6";
-const LOGOUT_RED = "#d63031";
-const LOGOUT_DARK_RED = "#b71c1c";
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const isSmallScreen = useMediaQuery("(max-width: 768px)");
   const [hovered, setHovered] = useState(null);
-  const [logoutConfirm, setLogoutConfirm] = useState(false);
-
-  const { logout, user } = useAuth();
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
 
   const menuItems = [
-    {
-      label: "Logout",
-      icon: <FaSignOutAlt size={24} />,
-      height: "10%",
-      isLogout: true,
-      action: () => setLogoutConfirm(true),
-    },
     {
       label: "User Directory",
       icon: <FaBook size={24} />,
@@ -76,50 +59,49 @@ const Sidebar = () => {
       isPrimary: true,
       action: () => navigate("/AuditLogs"),
     },
+    {
+      label: "RBAC Dashboard",
+      icon: <FaShieldAlt size={24} />,
+      menuKey: "rbac",
+      height: "10%",
+      isPrimary: true,
+      action: () => navigate("/RBAC"),
+    },
+    {
+      label: "Emergency Access",
+      icon: <FaHourglassHalf size={24} />,
+      menuKey: "emergency",
+      height: "10%",
+      isPrimary: true,
+      action: () => navigate("/emergency-access"),
+    },
   ];
 
   return (
-    <>
-      <Flex
-        direction="column"
-        align="center"
-        style={{
-          position: "fixed",
-          right: 0,
-          top: 0,
-          height: "100vh",
-          width: isSmallScreen ? "60px" : "80px",
-          backgroundColor: "#ffffff",
-          boxShadow: "-3px 0 10px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        {/* User Info Display */}
-        {user && !isSmallScreen && (
-          <Paper 
-            p="xs" 
-            mb="md"
-            withBorder 
-            style={{ width: '90%', marginTop: '10px' }}
-          >
-            <Group spacing="xs" position="center">
-              <Avatar color="blue" size="sm">
-                {user?.username?.charAt(0).toUpperCase()}
-              </Avatar>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Text size="xs" weight={500} truncate>
-                  {user?.username}
-                </Text>
-                <Text size="xs" color="dimmed" truncate>
-                  {user?.roles?.[0] || 'User'}
-                </Text>
-              </div>
-            </Group>
-          </Paper>
-        )}
+    <Flex
+      direction="column"
+      align="center"
+      style={{
+        position: "fixed",
+        right: 0,
+        top: 0,
+        height: "100vh",
+        width: isSmallScreen ? "60px" : "80px",
+        backgroundColor: "#ffffff",
+        boxShadow: "-3px 0 10px rgba(0, 0, 0, 0.1)",
+      }}
+    >
+      {/* Profile Header at Top of Sidebar */}
+      <div style={{ 
+        width: '100%', 
+        padding: '8px',
+      }}>
+        <ProfileHeader />
+      </div>
 
-        {menuItems.map(({ label, icon, path, menuKey, subItems, isPrimary, height, isDashboard, isLogout, action }) => (
+      {menuItems.map(({ label, icon, path, menuKey, subItems, isPrimary, height, isDashboard, action }) => (
+        <Tooltip key={label} label={label} position="left" withArrow disabled={hovered === menuKey && subItems}>
           <div
-            key={label}
             style={{
               width: "100%",
               height: height || "30%",
@@ -132,17 +114,13 @@ const Sidebar = () => {
                   ? hovered === label
                     ? MANTINE_DARK_BLUE
                     : MANTINE_BLUE
-                  : isLogout
-                    ? hovered === label
-                      ? LOGOUT_DARK_RED
-                      : LOGOUT_RED
-                    : hovered === menuKey || hovered === label
-                      ? MANTINE_BLUE
-                      : "transparent",
+                  : hovered === menuKey || hovered === label
+                    ? MANTINE_BLUE
+                    : "transparent",
               transition: "background 0.3s ease-in-out",
               cursor: "pointer",
               color:
-                isDashboard || hovered === menuKey || hovered === label || isLogout || isPrimary
+                isDashboard || hovered === menuKey || hovered === label || isPrimary
                   ? "white"
                   : MANTINE_BLUE,
             }}
@@ -178,21 +156,9 @@ const Sidebar = () => {
               <div style={{ color: "inherit" }}>{icon}</div>
             )}
           </div>
-        ))}
-      </Flex>
-
-      <Modal opened={logoutConfirm} onClose={() => setLogoutConfirm(false)} title="Confirm Logout" centered>
-        <p>Are you sure you want to logout?</p>
-        <Flex justify="space-between" mt="md">
-          <Button color="gray" onClick={() => setLogoutConfirm(false)}>
-            Cancel
-          </Button>
-          <Button color="red" onClick={handleLogout}>
-            Logout
-          </Button>
-        </Flex>
-      </Modal>
-    </>
+        </Tooltip>
+      ))}
+    </Flex>
   );
 };
 

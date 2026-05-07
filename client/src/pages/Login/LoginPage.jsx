@@ -26,7 +26,19 @@ const LoginPage = () => {
       await login(values.username, values.password);
       navigate("/UserDirectory", { replace: true });
     } catch (error) {
-      setError(error.response?.data?.error || "Login failed. Please check your credentials.");
+      // Handle both object and string error responses
+      const errorData = error.response?.data?.error;
+      
+      if (typeof errorData === 'object' && errorData !== null) {
+        // Error is an object with message property
+        setError(errorData.message || "Login failed. Please check your credentials.");
+      } else if (typeof errorData === 'string') {
+        // Error is a simple string
+        setError(errorData);
+      } else {
+        // Fallback error message
+        setError("Login failed. Please check your credentials.");
+      }
     } finally {
       setLoading(false);
     }

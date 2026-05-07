@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -10,11 +10,13 @@ import {
   TextInput,
   MultiSelect,
   Title,
+  Badge,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import axios from "axios";
+import api from "../../services/api";
 import { useMediaQuery } from "@mantine/hooks";
 import { FaCheck, FaTimes } from 'react-icons/fa';
+import { IconShield } from '@tabler/icons-react';
 
 const EditUserRolePage = () => {
   const [username, setUsername] = useState("");
@@ -28,25 +30,25 @@ const EditUserRolePage = () => {
   const xIcon = <FaTimes style={{ width: rem(20), height: rem(20) }} />;
   const checkIcon = <FaCheck style={{ width: rem(20), height: rem(20) }} />;
 
-  const API_URL = import.meta.env.VITE_BACKEND_URL;
-
   const fetchUserAndRoleDetails = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(
-        API_URL + `/api/get-user-roles-by-username?username=${username}`
+      const response = await api.get(
+        `/get-user-roles-by-username?username=${username}`
       );
+      console.log('API Response:', response.data);
       setUserDetails(response.data.user);
-      setCurrentRoles(response.data.roles);
+      setCurrentRoles(response.data.roles || []);
       setLoading(false);
     } catch (error) {
       setLoading(false);
+      console.error('Error fetching user roles:', error.response?.data || error.message);
       notifications.show({
         title: "Error",
         icon: xIcon,
         position: "top-center",
         withCloseButton: true,
-        message: "Could not fetch user details. Please check the username.",
+        message: error.response?.data?.message || "Could not fetch user details. Please check the username.",
         color: "red",
       });
     }
@@ -54,12 +56,42 @@ const EditUserRolePage = () => {
 
   const handleSubmit = async () => {
     try {
-      const updatedRoles = [...currentRoles, ...newRoles].filter(
-        (role, index, self) => self.indexOf(role) === index
-      );
-      console.log(updatedRoles);
+      // Get all available role names
+      const availableRoleNames = filterAvailableRoles().map(role => role.name);
 
-      await axios.put(API_URL + `/api/update-user-roles/`, {
+      // Validate new roles before adding
+      const invalidRoles = newRoles.filter(roleName => !availableRoleNames.includes(roleName));
+
+      if (invalidRoles.length > 0) {
+        notifications.show({
+          title: "Invalid Roles",
+          icon: xIcon,
+          position: "top-center",
+          withCloseButton: true,
+          message: `The following roles cannot be assigned: ${invalidRoles.join(', ')}`,
+          color: "orange",
+        });
+        return;
+      }
+
+      const updatedRoles = [...currentRoles, ...newRoles].filter(
+        (role, index, self) => {
+          // For role objects, check by name
+          if (typeof role === 'object' && role.name) {
+            return index === self.findIndex(r =>
+              (typeof r === 'object' && r.name === role.name) || r === role.name
+            );
+          }
+          // For string roles
+          return index === self.findIndex(r =>
+            (typeof r === 'object' && r.name === role) || r === role
+          );
+        }
+      );
+
+      console.log('Updated roles:', updatedRoles);
+
+      await api.put(`/update-user-roles/`, {
         username: username,
         roles: updatedRoles,
       });
@@ -94,16 +126,38 @@ const EditUserRolePage = () => {
 
   const fetchAvailableRoles = async () => {
     try {
-      const response = await axios.get(API_URL + `/api/view-roles`);
+      const response = await api.get(`/view-roles`);
       setRoles(response.data);
     } catch (error) {
       console.log(error.response);
     }
   };
 
+  const filterAvailableRoles = () => {
+    if (!userDetails) return [];
+
+    console.log('User details:', userDetails);
+    console.log('All roles:', roles);
+
+    // For now, show all non-basic roles
+    // We'll add more specific filtering later
+    const availableRoles = roles.filter(role => {
+      // Skip base roles as they are already assigned
+      return !role.basic;
+    });
+
+    console.log('Available roles after filtering:', availableRoles);
+    return availableRoles;
+  };
+
   useEffect(() => {
     fetchAvailableRoles();
   }, []);
+
+  useEffect(() => {
+    console.log('Current roles:', currentRoles);
+    console.log('Available roles:', filterAvailableRoles());
+  }, [userDetails, roles]);
 
   const handleEnterKeyPress = (event) => {
     if (event.key === "Enter") {
@@ -116,7 +170,7 @@ const EditUserRolePage = () => {
     return () => {
       document.removeEventListener("keydown", handleEnterKeyPress);
     };
-  }, [username]);
+  }, [username, userDetails]);
 
   const matches = useMediaQuery('(min-width: 768px)');
 
@@ -255,32 +309,77 @@ const EditUserRolePage = () => {
                 <Stack spacing="sm">
                   {currentRoles.map((role) => (
                     <Flex
-                      key={role}
+                      key={role.id || role.name}
                       justify={"space-between"}
                       align={"center"}
                       style={{
-                        padding: "0.5rem 1rem",
-                        borderRadius: "4px",
+                        padding: "0.75rem 1rem",
+                        borderRadius: "6px",
                         fontWeight: "bold",
-                        cursor: "pointer",
+                        cursor: role.role_type === 'permanent' ? "pointer" : "default",
                         transition: "background-color 0.2s",
+                        backgroundColor: role.role_type === 'temporary' ? '#fff5f5' : 'transparent',
+                        border: role.role_type === 'temporary' ? '2px solid #ff922b' : '1px solid transparent',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f0f0f0";
+                        if (role.role_type === 'permanent') {
+                          e.currentTarget.style.backgroundColor = "#f0f0f0";
+                        }
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "transparent";
+                        if (role.role_type === 'permanent') {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }
                       }}
                     >
-                      <Text>{role.name}{role.basic ? "(Base)" : ""}</Text>
-                      <Button
-                        variant="outline"
-                        color="red"
-                        disabled={role.basic}
-                        onClick={() => handleRemoveRole(role)}
-                      >
-                        Remove
-                      </Button>
+                      <Stack gap={4}>
+                        <Flex gap="xs" align="center">
+                          <Text>{role.name}{role.basic ? " (Base)" : ""}</Text>
+                          {role.role_type === 'temporary' && (
+                            <Badge 
+                              color="orange" 
+                              size="sm"
+                              leftSection={<IconShield size={12} />}
+                            >
+                              {role.temporary_tag || 'EMERGENCY ACCESS'}
+                            </Badge>
+                          )}
+                          {role.role_type === 'permanent' && !role.basic && (
+                            <Badge 
+                              color="green" 
+                              size="sm"
+                            >
+                              {role.permanent_tag || 'PERMANENT'}
+                            </Badge>
+                          )}
+                        </Flex>
+                        {role.role_type === 'temporary' && role.time_remaining && (
+                          <Text size="xs" style={{ color: '#ff922b', fontWeight: 600 }}>
+                            ⏱️ Expires in: {role.time_remaining}
+                          </Text>
+                        )}
+                        {role.role_type === 'temporary' && role.expires_at && (
+                          <Text size="xs" c="dimmed">
+                            Expiry: {new Date(role.expires_at).toLocaleString()}
+                          </Text>
+                        )}
+                      </Stack>
+                      {role.role_type === 'permanent' && (
+                        <Button
+                          variant="outline"
+                          color="red"
+                          disabled={role.basic}
+                          onClick={() => handleRemoveRole(role)}
+                          size="xs"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                      {role.role_type === 'temporary' && (
+                        <Text size="xs" style={{ color: '#ff922b', fontWeight: 600 }}>
+                          Auto-expiring
+                        </Text>
+                      )}
                     </Flex>
                   ))}
                 </Stack>
@@ -290,15 +389,26 @@ const EditUserRolePage = () => {
               <MultiSelect
                 label="Add new role"
                 placeholder="Select roles"
-                data={roles.map((role) => ({
+                data={filterAvailableRoles().map((role) => ({
                   value: role.name,
-                  label: `${role.name}${role.basic ? "(Base)" : ""}`,
+                  label: role.name,
                 }))}
                 value={newRoles}
-                onChange={setNewRoles}
+                onChange={(values) => {
+                  console.log('Selected roles:', values);
+                  setNewRoles(values);
+                }}
                 searchable
                 clearable
+                disabled={!userDetails || filterAvailableRoles().length === 0}
+                nothingFoundMessage="No roles available"
               />
+
+              {filterAvailableRoles().length === 0 && (
+                <Text size="sm" c="dimmed" mt="0.5rem">
+                  No additional roles can be assigned to this user based on their designation and category.
+                </Text>
+              )}
 
               <Button
                 color="blue"

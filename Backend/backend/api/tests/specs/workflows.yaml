@@ -1,0 +1,67 @@
+# Workflows Specification for Super Admin Module
+
+workflows:
+  # WF-1: Emergency Access End-to-End Flow
+  - id: "WF-1"
+    title: "Emergency Role Access Complete Workflow"
+    description: "User requests emergency role → Admin approves → User gets temporary access → Role expires"
+
+    e2e_tests:
+      - scenario: "User requests director role for 60min → Admin approves → User gets director role → After 60min role expires"
+        expected_final_state: "Request status=APPROVED, TemporaryRoleAssignment exists with expires_at set, user has director role in active roles, after expiry role no longer appears"
+
+    negative_tests:
+      - scenario: "User requests emergency role → Admin rejects request"
+        expected_final_state: "Request status=REJECTED, no TemporaryRoleAssignment created, user does not have temporary role"
+
+  # WF-2: User Blocking and Login Prevention Flow
+  - id: "WF-2"
+    title: "Block User and Prevent Login Workflow"
+    description: "Admin blocks user → User attempts login → Login denied → User unblocked → Login allowed"
+
+    e2e_tests:
+      - scenario: "Admin blocks active user → User tries to login → Login fails → Admin unblocks user → User login succeeds"
+        expected_final_state: "User status changes from ACTIVE to BLOCKED to ACTIVE, login fails when blocked, succeeds when unblocked"
+
+    negative_tests:
+      - scenario: "Admin tries to block already blocked user"
+        expected_final_state: "Operation fails or no-op, user remains BLOCKED, appropriate error returned"
+
+  # WF-3: Role Assignment and Conflict Resolution Flow
+  - id: "WF-3"
+    title: "Role Assignment with Conflict Check Workflow"
+    description: "Admin assigns role to user → System checks for conflicts → Assignment approved or rejected based on rules"
+
+    e2e_tests:
+      - scenario: "Admin assigns fee_collector role to user with admin role → No conflicts → Assignment successful"
+        expected_final_state: "New role assignment created, user has both admin and fee_collector roles"
+
+    negative_tests:
+      - scenario: "Admin assigns conflicting role → System detects conflict → Assignment rejected"
+        expected_final_state: "Assignment rejected with conflict error, no new role assignment created"
+
+  # WF-4: Failed Login and Account Lockout Flow
+  - id: "WF-4"
+    title: "Multiple Failed Login Attempts Lockout Workflow"
+    description: "User fails login 5 times → Account locked → User waits 5 minutes → Lockout expires → Login allowed"
+
+    e2e_tests:
+      - scenario: "User fails login 5 times consecutively → Account temporarily locked → User waits → Lockout expires → Valid login succeeds"
+        expected_final_state: "5 failed login audit logs created, account locked after 5th attempt, lockout expires after 5 minutes, login succeeds after lockout period"
+
+    negative_tests:
+      - scenario: "User fails login 5 times → Attempts login during lockout period"
+        expected_final_state: "Login rejected with 429 Too Many Requests, account remains locked, appropriate error message shown"
+
+  # WF-5: Temporary Role Expiration and Cleanup Flow
+  - id: "WF-5"
+    title: "Emergency Role Automatic Expiration Workflow"
+    description: "User granted temporary role → Time passes → Role expires → User roles updated"
+
+    e2e_tests:
+      - scenario: "User granted 60min temporary role → System time advances past expiry → User roles refreshed → Temporary role no longer appears"
+        expected_final_state: "TemporaryRoleAssignment exists but is expired, GET /rbac/roles/ returns only permanent roles, expired role not included"
+
+    negative_tests:
+      - scenario: "User attempts to use permissions of expired temporary role"
+        expected_final_state: "User cannot access features requiring expired role, only has access from permanent roles"

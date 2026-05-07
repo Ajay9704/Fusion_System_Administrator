@@ -271,3 +271,139 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.timestamp} - {self.user.username if self.user else 'Unknown'} - {self.action}"
+class RBACConfiguration(models.Model):
+    """
+    Stores RBAC system configuration (eligibility and conflict rules)
+    """
+    id = models.AutoField(primary_key=True)
+    config_type = models.CharField(max_length=50, unique=True)  # 'eligibility' or 'conflicts'
+    config_data = models.JSONField(default=dict)
+    updated_by = models.ForeignKey(AuthUser, on_delete=models.SET_NULL, null=True, related_name='rbac_configs_updated')
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'rbac_configuration'
+        verbose_name = 'RBAC Configuration'
+        verbose_name_plural = 'RBAC Configurations'
+
+    def __str__(self):
+        return f"{self.config_type} (updated: {self.updated_at})"
+
+
+class RoleEligibilityRule(models.Model):
+    """Defines which user types are eligible for which roles"""
+    id = models.AutoField(primary_key=True)
+    role_name = models.CharField(max_length=100, unique=True)
+    eligible_user_types = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'rbac_role_eligibility'
+        verbose_name = 'Role Eligibility Rule'
+        verbose_name_plural = 'Role Eligibility Rules'
+
+    def __str__(self):
+        return f"{self.role_name} -> {self.eligible_user_types}"
+
+
+class RoleConflictRule(models.Model):
+    """Defines which roles conflict with each other"""
+    id = models.AutoField(primary_key=True)
+    role_name = models.CharField(max_length=100, unique=True)
+    conflicts_with = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'rbac_role_conflicts'
+        verbose_name = 'Role Conflict Rule'
+        verbose_name_plural = 'Role Conflict Rules'
+
+    def __str__(self):
+        return f"{self.role_name} conflicts with {self.conflicts_with}"
+
+
+class EmergencyAccessRequest(models.Model):
+    """
+    Emergency/Just-In-Time role access requests
+    """
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        EXPIRED = 'EXPIRED', 'Expired'
+        WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
+
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, related_name='emergency_requests')
+    role = models.ForeignKey('GlobalsDesignation', on_delete=models.CASCADE, related_name='emergency_requests')
+    reason = models.TextField(help_text="Reason for requesting emergency access")
+    requested_duration = models.PositiveIntegerField(help_text="Requested duration in minutes")
+    approved_duration = models.PositiveIntegerField(help_text="Approved duration in minutes", null=True, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(AuthUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_emergency_requests')
+    expires_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, null=True)
+    duration_modified_reason = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'emergency_access_requests'
+        verbose_name = 'Emergency Access Request'
+        verbose_name_plural = 'Emergency Access Requests'
+        ordering = ['-requested_at']
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.role.name} ({self.status})"
+
+    def is_active(self):
+        """Check if this request grants active access"""
+        from django.utils import timezone
+        return (
+            self.status == self.Status.APPROVED and
+            self.expires_at and
+            self.expires_at > timezone.now()
+        )
+
+
+class TemporaryRoleAssignment(models.Model):
+    """
+    Tracks temporary role assignments from emergency access
+    """
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, related_name='temporary_roles')
+    role = models.ForeignKey('GlobalsDesignation', on_delete=models.CASCADE, related_name='temporary_assignments')
+    request = models.ForeignKey(EmergencyAccessRequest, on_delete=models.CASCADE, related_name='assignments')
+    granted_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(AuthUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='revoked_temporary_roles')
+    revocation_reason = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'temporary_role_assignments'
+        verbose_name = 'Temporary Role Assignment'
+        verbose_name_plural = 'Temporary Role Assignments'
+        ordering = ['-granted_at']
+        unique_together = [['user', 'role', 'request']]
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.role.name}"
+
+    def is_valid(self):
+        """Check if this assignment is currently valid"""
+        from django.utils import timezone
+        return self.is_active and self.expires_at > timezone.now()
+
+    def revoke(self, revoked_by_user, reason=None):
+        """Revoke this temporary role assignment"""
+        from django.utils import timezone
+        self.is_active = False
+        self.revoked_at = timezone.now()
+        self.revoked_by = revoked_by_user
+        self.revocation_reason = reason
+        self.save()

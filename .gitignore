@@ -54,3 +54,12 @@ yarn-error.log*
 *.bak
 *.cache
 *.pid
+
+# Scripts and tests directories (keep structure, ignore temporary outputs)
+scripts/*.log
+tests/*.log
+scripts/__pycache__/
+tests/__pycache__/
+
+# Backend scripts
+Backend/backend/scripts/__pycache__/

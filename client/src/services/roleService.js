@@ -20,13 +20,24 @@ export const getAllDesignations = async (designationType) => {
   return response.data;
 };
 
-export const getAllDepartments = async () => {
-  const response = await apiClient.get('/departments/');
+export const getAllDepartments = async (type = 'staff') => {
+  // type: 'student' or 'faculty' = academic only, 'staff' = all departments
+  const academicOnly = type === 'student' || type === 'faculty';
+  const response = await apiClient.get('/departments/', {
+    params: { academic_only: academicOnly }
+  });
   return response.data;
 };
 
 export const getAllBatches = async () => {
   const response = await apiClient.get('/batches/');
+  return response.data;
+};
+
+export const getDepartmentsByProgramme = async (programme) => {
+  const response = await apiClient.get('/departments/by-programme/', {
+    params: { programme }
+  });
   return response.data;
 };
 

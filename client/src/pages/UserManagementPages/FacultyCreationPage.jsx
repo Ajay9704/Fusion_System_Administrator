@@ -19,8 +19,8 @@ import { FaCheck, FaTimes } from 'react-icons/fa';
 import { notifications, showNotification } from '@mantine/notifications';
 import { DateInput } from '@mantine/dates';
 import { useMediaQuery } from "@mantine/hooks";
-import { getAllDesignations, getAllDepartments } from '../../api/Roles';
-import { createFaculty } from '../../api/Users';
+import { getAllDesignations, getAllDepartments } from '../../services/roleService';
+import { createFaculty } from '../../services/userService';
 
 const FacultyCreationPage = () => {
     const xIcon = <FaTimes style={{ width: rem(20), height: rem(20) }} />;
@@ -37,6 +37,7 @@ const FacultyCreationPage = () => {
         dob: null,
         phone: '',
         address: '',
+        personal_email: '',
     });
 
     const [progress, setProgress] = useState(0);
@@ -84,7 +85,7 @@ const FacultyCreationPage = () => {
     const fetchDepartments = async () => {
         try {
             let all_departments = [];
-            const response = await getAllDepartments();
+            const response = await getAllDepartments('faculty');
             console.log(response)
             for(let i=0; i<response.length; i++){
                 all_departments[i] = {value: `${response[i].id}`, label: response[i].name}
@@ -116,11 +117,11 @@ const FacultyCreationPage = () => {
 
             showNotification({
                 icon: checkIcon,
-                title: "Success",
+                title: "Faculty Created",
                 position: "top-center",
                 withCloseButton: true,
                 autoClose: 5000,
-                message: "Faculty Created Successfully.",
+                message: `Faculty member created successfully. Credentials sent to ${formValues.personal_email}`,
                 color: "green",
             });
             console.log('Form Submitted', formValues);
@@ -135,14 +136,21 @@ const FacultyCreationPage = () => {
                 dob: null,
                 phone: '',
                 address: '',
+                personal_email: '',
             });
         } catch(error){
+            console.error('Faculty creation error:', error);
+            const errorMessage = error.response?.data
+                ? (error.response.data.error?.message || error.response.data.message || JSON.stringify(error.response.data))
+                : error.message;
+
             showNotification({
-                title: 'Error',
+                title: 'Error Creating Faculty',
                 icon: xIcon,
                 position: "top-center",
                 withCloseButton: true,
-                message: 'An error occurred while creating faculty.',
+                autoClose: 8000,
+                message: errorMessage || 'An error occurred while creating faculty.',
                 color: 'red',
             });
         } finally {
@@ -173,7 +181,7 @@ const FacultyCreationPage = () => {
     const matches = useMediaQuery('(min-width: 768px)');
 
     return (
-        <Box maw={700} mx="auto" p="lg" shadow="sm" withBorder>
+        <Box maw={700} mx="auto" p="lg">
             <Paper shadow="xl" radius="lg" p="xl">
                 <Flex
                     gap="md"
@@ -214,13 +222,26 @@ const FacultyCreationPage = () => {
                 <Progress value={progress} color="blue" mb="md" />
 
                 <Grid gutter="md">
+                    {/* Personal Email - Required */}
                     <Grid.Col span={12}>
                         <TextInput
-                            label="Username"
-                            placeholder="Enter username(20 letters)"
+                            label="Personal Email"
+                            placeholder="faculty.email@gmail.com"
+                            value={formValues.personal_email}
+                            onChange={(e) => handleChange('personal_email', e.target.value)}
+                            required
+                            description="Login credentials will be sent to this email"
+                        />
+                    </Grid.Col>
+
+                    {/* Username - Optional */}
+                    <Grid.Col span={12}>
+                        <TextInput
+                            label="Username (Optional)"
+                            placeholder="Leave blank for auto-generation"
                             value={formValues.username}
                             onChange={(e) => handleChange('username', e.target.value)}
-                            required
+                            description="Auto-generated from name (e.g., snsharma)"
                         />
                     </Grid.Col>
                     {/* First Name */}
@@ -245,14 +266,16 @@ const FacultyCreationPage = () => {
                         />
                     </Grid.Col>
 
-                    {/* Department */}
+                    {/* Department - MANDATORY for Faculty */}
                     <Grid.Col span={12}>
                         <Select
                             label="Department"
-                            placeholder="Enter department"
+                            placeholder="Select department"
                             data={departments}
                             value={`${formValues.department}`}
                             onChange={(value) => handleChange('department', Number(value))}
+                            required
+                            description="Faculty must be assigned to a department"
                         />
                     </Grid.Col>
 

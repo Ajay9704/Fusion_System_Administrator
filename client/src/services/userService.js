@@ -71,3 +71,11 @@ export const updateUser = async (userId, userData) => {
   const response = await apiClient.put(`/users/${userId}/`, userData);
   return response.data;
 };
+
+/**
+ * Get user roles by username (uses the updated endpoint with temporary role support)
+ */
+export const getUserRolesByUsername = async (username) => {
+  const response = await apiClient.get(`/get-user-roles-by-username?username=${encodeURIComponent(username)}`);
+  return response.data;
+};

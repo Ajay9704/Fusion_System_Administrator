@@ -19,8 +19,8 @@ import { FaCheck, FaTimes } from 'react-icons/fa';
 import { notifications, showNotification } from '@mantine/notifications';
 import { DateInput } from '@mantine/dates';
 import { useMediaQuery } from "@mantine/hooks";
-import { getAllDesignations, getAllDepartments } from '../../api/Roles';
-import { createStaff } from '../../api/Users';
+import { getAllDesignations, getAllDepartments } from '../../services/roleService';
+import { createStaff } from '../../services/userService';
 
 const StaffCreationPage = () => {
     const xIcon = <FaTimes style={{ width: rem(20), height: rem(20) }} />;
@@ -37,6 +37,7 @@ const StaffCreationPage = () => {
         dob: null,
         phone: '',
         address: '',
+        personal_email: '',
     });
 
     const [progress, setProgress] = useState(0);
@@ -84,7 +85,7 @@ const StaffCreationPage = () => {
     const fetchDepartments = async () => {
         try {
             let all_departments = [];
-            const response = await getAllDepartments();
+            const response = await getAllDepartments('staff');
             console.log(response)
             for(let i=0; i<response.length; i++){
                 all_departments[i] = {value: `${response[i].id}`, label: response[i].name}
@@ -106,14 +107,18 @@ const StaffCreationPage = () => {
         console.log(formValues)
         try{
             setLoading(true)
-            const response = await createStaff(formValues);
+            const formattedFormValues = {
+                ...formValues,
+                dob: formValues.dob ? formValues.dob.toISOString().split('T')[0] : null,
+            };
+            const response = await createStaff(formattedFormValues);
             showNotification({
                 icon: checkIcon,
-                title: "Success",
+                title: "Staff Created",
                 position: "top-center",
                 withCloseButton: true,
                 autoClose: 5000,
-                message: "Staff Created Successfully.",
+                message: `Staff member created successfully. Credentials sent to ${formValues.personal_email}`,
                 color: "green",
             });
             console.log('Form Submitted', formValues);
@@ -128,14 +133,21 @@ const StaffCreationPage = () => {
                 dob: null,
                 phone: '',
                 address: '',
+                personal_email: '',
             });
         } catch(error){
+            console.error('Staff creation error:', error);
+            const errorMessage = error.response?.data
+                ? (error.response.data.error?.message || error.response.data.message || JSON.stringify(error.response.data))
+                : error.message;
+
             showNotification({
-                title: 'Error',
+                title: 'Error Creating Staff',
                 icon: xIcon,
                 position: "top-center",
                 withCloseButton: true,
-                message: 'An error occurred while creating staff.',
+                autoClose: 8000,
+                message: errorMessage || 'An error occurred while creating staff.',
                 color: 'red',
             });
         } finally {
@@ -166,7 +178,7 @@ const StaffCreationPage = () => {
     const matches = useMediaQuery('(min-width: 768px)');
 
     return (
-        <Box maw={700} mx="auto" p="lg" shadow="sm" withborder>
+        <Box maw={700} mx="auto" p="lg">
             <Paper shadow="xl" radius="lg" p="xl">
                 <Flex
                     gap="md"
@@ -207,13 +219,26 @@ const StaffCreationPage = () => {
                 <Progress value={progress} color="blue" mb="md" />
 
                 <Grid gutter="md">
+                    {/* Personal Email - Required */}
                     <Grid.Col span={12}>
                         <TextInput
-                            label="Username"
-                            placeholder="Enter username(20 letters)"
+                            label="Personal Email"
+                            placeholder="staff.email@gmail.com"
+                            value={formValues.personal_email}
+                            onChange={(e) => handleChange('personal_email', e.target.value)}
+                            required
+                            description="Login credentials will be sent to this email"
+                        />
+                    </Grid.Col>
+
+                    {/* Username - Optional */}
+                    <Grid.Col span={12}>
+                        <TextInput
+                            label="Username (Optional)"
+                            placeholder="Leave blank for auto-generation"
                             value={formValues.username}
                             onChange={(e) => handleChange('username', e.target.value)}
-                            required
+                            description="Auto-generated from name (e.g., rsmith)"
                         />
                     </Grid.Col>
                     {/* First Name */}

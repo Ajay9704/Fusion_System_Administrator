@@ -59,18 +59,16 @@ const ResetUserPasswordPage = () => {
             setOpened(false);
             const response = await resetPassword(formData);
             console.log('Reset Password for:', formData);
-            close();
             showNotification({
                 title: 'Password Reset',
                 icon: checkIcon,
                 position: "top-center",
                 withCloseButton: true,
-                message: `Password for ${formData.name} has been reset successfully.\nNew password: ${response.password}`,
+                message: `Password for ${formData.username} has been reset successfully.\nNew password: ${response.password}`,
                 color: 'green',
             });
             setFormData({
-                name: '',
-                rollNo: '',
+                username: '',
             });
         }
         catch (e) {

@@ -7,4 +7,5 @@ export { default as apiClient } from './api';
 export * from './userService';
 export * from './roleService';
 export * from './mailService';
-export { default as authService } from './authServices';
+export * from './authService';
+export { default as firebaseAuthService } from './authServices';

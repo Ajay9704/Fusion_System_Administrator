@@ -35,6 +35,7 @@ const StudentCreationPage = () => {
     dob: null,
     phone: '',
     address: '',
+    personal_email: '',
   });
 
   const [departments, setDepartments] = useState([]);
@@ -50,7 +51,7 @@ const StudentCreationPage = () => {
   const fetchDepartments = async () => {
     try {
       let all_departments = [];
-      const response = await getAllDepartments();
+      const response = await getAllDepartments('student');
       for(let i=0; i<response.length; i++){
         all_departments[i] = {value: `${response[i].id}`, label: response[i].name}
       }
@@ -106,29 +107,59 @@ const StudentCreationPage = () => {
     try {
       let response;
       if(file){
+        // Bulk upload
         const formData = new FormData();
         formData.append('file', file);
         response = await bulkUploadUsers(formData);
+        
+        // Handle bulk upload response
+        if(response.created_count > 0 || response.failed_count > 0) {
+          const message = `${response.created_count} student(s) created successfully. ${response.failed_count > 0 ? `${response.failed_count} failed.` : ''}`;
+          
+          showNotification({
+            icon: checkIcon,
+            title: "Bulk Upload Complete",
+            position: "top-center",
+            withCloseButton: true,
+            autoClose: 8000,
+            message: message,
+            color: response.failed_count > 0 ? "yellow" : "green",
+          });
+          
+          // Download failed entries CSV if exists
+          if (response.failed_csv && response.failed_count > 0) {
+            const csvUrl = URL.createObjectURL(new Blob([response.failed_csv], {type: 'text/csv'}));
+            downloadCSV(csvUrl, `failed_entries_${Date.now()}.csv`);
+            
+            setTimeout(() => {
+              showNotification({
+                icon: xIcon,
+                title: "Failed Entries Report Downloaded",
+                message: "Check the downloaded CSV for details. Fix errors and re-upload.",
+                position: "top-center",
+                withCloseButton: true,
+                autoClose: 6000,
+                color: "red",
+              });
+            }, 1000);
+          }
+        }
       }
-      else response = await createStudent(formValues);
-
-      if(response.skipped_users_count > 0){
-        const csvUrl = URL.createObjectURL(new Blob([response.skipped_users_csv], {type: 'text/csv'}));
-        downloadCSV(csvUrl, 'skipped_users.csv');
-      }
-      
-      showNotification({
-        icon: checkIcon,
-        title: "Success",
-        position: "top-center",
-        withCloseButton: true,
-        autoClose: 5000,
-        message: `${response.created_users.length} Student has been Created Successfully.\n${response.skipped_users_count ? `${response.skipped_users_count} User skipped.` : ''}`,
-        color: "green",
-      });
-      
-      // Reset form only if single student creation
-      if (!file) {
+      else {
+        // Individual student creation
+        response = await createStudent(formValues);
+        
+        showNotification({
+          icon: checkIcon,
+          title: "Student Created",
+          position: "top-center",
+          withCloseButton: true,
+          autoClose: 5000,
+          message: `Student ${response.username || 'created'} successfully. Credentials sent to ${formValues.personal_email}`,
+          color: "green",
+        });
+        
+        // Reset form
         setFormValues({
           username: "",
           first_name: "",
@@ -145,6 +176,7 @@ const StudentCreationPage = () => {
           dob: null,
           phone: '',
           address: '',
+          personal_email: '',
         });
       }
     } catch (err) {
@@ -176,7 +208,7 @@ const StudentCreationPage = () => {
   };
 
   return (
-    <Box maw={700} mx="auto" p="lg" shadow="sm" withBorder>
+    <Box maw={700} mx="auto" p="lg">
       <Paper shadow="xl" radius="lg" p="xl">
         <Flex
           gap="md"

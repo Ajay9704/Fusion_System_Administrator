@@ -1,0 +1,127 @@
+# Use Cases Specification for Super Admin Module
+
+use_cases:
+  # UC-1: User Authentication
+  - id: "UC-1"
+    title: "User Login Authentication"
+    description: "Users can authenticate with valid credentials"
+    actors: "System User"
+    preconditions: "User account exists and is active"
+
+    happy_paths:
+      - scenario: "User logs in with valid username and password"
+        preconditions: "User account is active and not blocked"
+        input_action: "POST /auth/login/ with valid username and password"
+        expected_result: "Login successful, returns access and refresh tokens with user roles"
+
+    alternate_paths:
+      - scenario: "User logs in with email instead of username"
+        preconditions: "User account is active"
+        input_action: "POST /auth/login/ with email instead of username"
+        expected_result: "Login successful, same response format"
+
+    exception_paths:
+      - scenario: "User attempts login with invalid password"
+        preconditions: "User account exists"
+        input_action: "POST /auth/login/ with incorrect password"
+        expected_result: "Login failed with 401 Unauthorized and error message"
+
+  # UC-2: Emergency Role Access Request
+  - id: "UC-2"
+    title: "Request Emergency Role Access"
+    description: "Users can request temporary role access for specific duration"
+    actors: "System User"
+    preconditions: "User is authenticated and wants additional role temporarily"
+
+    happy_paths:
+      - scenario: "User requests temporary director role for 60 minutes"
+        preconditions: "User is logged in, director role exists"
+        input_action: "POST /emergency-access/request/ with role=director, duration=60, reason='Emergency access'"
+        expected_result: "Request created with status=PENDING, request ID returned"
+
+    alternate_paths:
+      - scenario: "User requests different role type (e.g., fee_collector)"
+        preconditions: "User is logged in, role exists"
+        input_action: "POST /emergency-access/request/ with role=fee_collector, duration=30"
+        expected_result: "Request created successfully for different role"
+
+    exception_paths:
+      - scenario: "User requests non-existent role"
+        preconditions: "User is logged in"
+        input_action: "POST /emergency-access/request/ with role=nonexistent, duration=60"
+        expected_result: "Request rejected with 404, role not found error"
+
+  # UC-3: Approve Emergency Access Request
+  - id: "UC-3"
+    title: "Approve Emergency Access Request"
+    description: "Admin users can approve emergency access requests"
+    actors: "Administrator"
+    preconditions: "Emergency request exists with status=PENDING"
+
+    happy_paths:
+      - scenario: "Admin approves pending emergency request"
+        preconditions: "Admin is logged in, pending request exists"
+        input_action: "POST /emergency-access/approve/{request_id}/ with approved_duration=60"
+        expected_result: "Request status changed to APPROVED, TemporaryRoleAssignment created with expiry time"
+
+    alternate_paths:
+      - scenario: "Admin approves with modified duration"
+        preconditions: "Admin is logged in, pending request exists"
+        input_action: "POST /emergency-access/approve/{request_id}/ with approved_duration=120 (modified from 60)"
+        expected_result: "Request approved with modified duration, TemporaryRoleAssignment created with new expiry"
+
+    exception_paths:
+      - scenario: "Admin tries to approve already approved request"
+        preconditions: "Admin is logged in, request already approved"
+        input_action: "POST /emergency-access/approve/{request_id}/"
+        expected_result: "Request rejected with 400, request already processed error"
+
+  # UC-4: View User Roles
+  - id: "UC-4"
+    title: "View All User Roles Including Temporary"
+    description: "Users can view all assigned roles including active temporary roles"
+    actors: "System User"
+    preconditions: "User is authenticated"
+
+    happy_paths:
+      - scenario: "User views roles showing both permanent and temporary assignments"
+        preconditions: "User has permanent roles and active temporary role"
+        input_action: "GET /rbac/roles/?username={username}"
+        expected_result: "Returns all roles with role_type field showing 'permanent' and 'temporary' types"
+
+    alternate_paths:
+      - scenario: "User views roles when only permanent roles exist"
+        preconditions: "User has only permanent role assignments"
+        input_action: "GET /rbac/roles/?username={username}"
+        expected_result: "Returns only permanent roles with role_type='permanent'"
+
+    exception_paths:
+      - scenario: "User views roles for non-existent user"
+        preconditions: "User is authenticated"
+        input_action: "GET /rbac/roles/?username=nonexistent_user"
+        expected_result: "Returns 404 error with user not found message"
+
+  # UC-5: Block User Access
+  - id: "UC-5"
+    title: "Block User from System Access"
+    description: "Admin can block user from accessing the system"
+    actors: "Administrator"
+    preconditions: "Admin is authenticated, user to block exists"
+
+    happy_paths:
+      - scenario: "Admin blocks active user"
+        preconditions: "Admin logged in, user is active"
+        input_action: "POST /rbac/users/block/ with username={target_user}, reason='Policy violation'"
+        expected_result: "User status changed to BLOCKED, user cannot login after blocking"
+
+    alternate_paths:
+      - scenario: "Admin blocks user with different reason"
+        preconditions: "Admin logged in"
+        input_action: "POST /rbac/users/block/ with reason='Security concern'"
+        expected_result: "User blocked with new reason recorded in audit log"
+
+    exception_paths:
+      - scenario: "Admin tries to block non-existent user"
+        preconditions: "Admin logged in"
+        input_action: "POST /rbac/users/block/ with username=nonexistent"
+        expected_result: "Request rejected with 404, user not found error"

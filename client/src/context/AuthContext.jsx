@@ -47,17 +47,28 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Attempting login for:', username);
       const response = await loginApi({ username, password });
-      
+
       console.log('Login successful, user:', response.user.username);
       console.log('Roles:', response.user.roles);
-      
+      console.log('Detailed Roles:', response.user.roles_detailed);
+
+      // Enhance user object with role details if available
+      const userWithRoleDetails = {
+        ...response.user,
+        roles_with_details: response.user.roles_detailed || response.user.roles.map(roleName => ({
+          name: roleName,
+          is_emergency: false,
+          role_type: 'permanent'
+        }))
+      };
+
       // Save tokens and user data
       localStorage.setItem('accessToken', response.access);
       localStorage.setItem('refreshToken', response.refresh);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      
-      setUser(response.user);
-      return response.user;
+      localStorage.setItem('user', JSON.stringify(userWithRoleDetails));
+
+      setUser(userWithRoleDetails);
+      return userWithRoleDetails;
     } catch (error) {
       console.error('Login failed:', error.response?.data || error.message);
       throw error;

@@ -10,12 +10,67 @@ from datetime import datetime
 from .models import GlobalsDepartmentinfo, Batch, GlobalsDesignation
 from .serializers import GlobalExtraInfoSerializer, GlobalsHoldsDesignationSerializer, StudentSerializer
 import os
+import re
+
+def validate_email_format(email):
+    """Validate email format"""
+    if not email:
+        return False
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(email_pattern, email) is not None
+
+def validate_personal_email(email):
+    """
+    Validate personal email
+    - Must be valid email format
+    - Cannot be @iiitdmj.ac.in domain (must be external)
+    """
+    if not validate_email_format(email):
+        return False, "Invalid email format"
+    
+    if email.lower().endswith('@iiitdmj.ac.in'):
+        return False, "Please provide a personal email (not college email)"
+    
+    return True, "Valid"
+
 
 def create_password(data):
-    user_name = data.get('username').lower().capitalize()
+    user_name = data.get('username', '').lower().capitalize()
+    if not user_name:
+        return "Fusion@2025"  # Default for bulk uploads
     special_characters = string.punctuation
     random_specials = ''.join(random.choice(special_characters) for _ in range(3))
     return f"{user_name}{random_specials}"
+
+
+def convert_to_iso(date_string):
+    """
+    Convert various date formats to ISO format (YYYY-MM-DD)
+    Handles: DD-MM-YYYY, MM/DD/YYYY, YYYY-MM-DD
+    """
+    import datetime
+    if not date_string or date_string.strip() == '':
+        return "2025-01-01"
+    
+    date_str = date_string.strip()
+    
+    # Try different formats
+    formats = [
+        '%Y-%m-%d',      # 2000-01-30
+        '%d-%m-%Y',      # 30-01-2000
+        '%m/%d/%Y',      # 01/30/2000
+        '%d/%m/%Y',      # 30/01/2000
+    ]
+    
+    for fmt in formats:
+        try:
+            date_obj = datetime.datetime.strptime(date_str, fmt)
+            return date_obj.strftime('%Y-%m-%d')
+        except ValueError:
+            continue
+    
+    # If all formats fail, return default
+    return "2025-01-01"
 
 
 def create_password_from_authuser(student):
@@ -84,9 +139,22 @@ def log_failed_email(student, plain_password, hashed_password, error):
         f.write(f"Error: {error}\n")
         f.write("\n")
 
-def mail_to_user_single(student, password):
+def mail_to_user_single(student, password, college_email=None):
+    """
+    Send credential email to user's personal email
+    Includes college email information if provided
+    """
     user = {"username": student['username'], "password": password, "email": student['email']}
-    subject = "Fusion Portal Credentials"
+    subject = "Fusion Portal Credentials - IIITDM Jabalpur"
+    
+    # Build college email section if available
+    college_email_section = ""
+    if college_email:
+        college_email_section = f"""
+Your College Email Address:
+College Email: {college_email}
+(This is your official institute email for academic purposes)
+"""
     
     message = (
         f"Dear Student,\n\n"
@@ -98,6 +166,7 @@ def mail_to_user_single(student, password):
         "Portal Link: \n http://fusion.iiitdmj.ac.in:8000 \n http://fusion.iiitdmj.ac.in/ \n http://172.27.16.216:8000/  (On LAN Only) /\n"
         f"Username: {user['username'].upper()}\n"
         f"Password: {password}\n\n"
+        f"{college_email_section}"
         "Important Instructions:\n"
         "1. Initial Login: Use the credentials provided above to log in to the portal.\n"
         "2. Change Password: Upon first login, change your password with the following steps:\n"
@@ -113,7 +182,7 @@ def mail_to_user_single(student, password):
         "Fusion Development Team,\n"
         "PDPM IIITDM Jabalpur"
     )
-    recipient_list = [f"{user['email']}"]
+    recipient_list = [f"{user['email']}"]  # This is now personal_email
     if(int(settings.EMAIL_TEST_MODE) == 1):
         recipient_list = [settings.EMAIL_TEST_USER]
     send_email(

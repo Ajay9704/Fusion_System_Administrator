@@ -1,0 +1,106 @@
+# Business Rules Specification for Super Admin Module
+
+business_rules:
+  # BR-1: Blocked User Cannot Login
+  - id: "BR-1"
+    title: "Blocked users cannot authenticate regardless of roles"
+    description: "Users with BLOCKED status are denied login even if they have admin or emergency roles"
+
+    valid_tests:
+      - input_action: "Active user with admin role attempts login"
+        expected_result: "Login successful, tokens returned"
+
+    invalid_tests:
+      - input_action: "Blocked user (even with admin role) attempts login"
+        expected_result: "Login rejected with 403 Forbidden, account blocked message"
+
+  # BR-2: Emergency Role Expiration
+  - id: "BR-2"
+    title: "Emergency roles automatically expire after approved duration"
+    description: "Temporary role assignments are only valid during the approved time period"
+
+    valid_tests:
+      - input_action: "User with active emergency role (within time limit) attempts to access system"
+        expected_result: "Emergency role is included in user's active roles"
+
+    invalid_tests:
+      - input_action: "User attempts to use expired emergency role (past approved duration)"
+        expected_result: "Emergency role not included in user's active roles, only permanent roles shown"
+
+  # BR-3: Role Conflict Prevention
+  - id: "BR-3"
+    title: "Conflicting roles cannot be assigned to same user"
+    description: "System prevents assignment of mutually exclusive roles"
+
+    valid_tests:
+      - input_action: "Assign non-conflicting role to user (e.g., admin + director)"
+        expected_result: "Role assignment successful"
+
+    invalid_tests:
+      - input_action: "Assign conflicting role to user (if conflict rules exist)"
+        expected_result: "Assignment rejected with conflict error, listing conflicting roles"
+
+  # BR-4: Emergency Request Requires Valid Role
+  - id: "BR-4"
+    title: "Emergency access requests must reference valid existing roles"
+    description: "Users can only request emergency access for roles that exist in system"
+
+    valid_tests:
+      - input_action: "Submit emergency request for valid role (e.g., director, admin)"
+        expected_result: "Request created successfully with PENDING status"
+
+    invalid_tests:
+      - input_action: "Submit emergency request for non-existent role"
+        expected_result: "Request rejected with 404, role not found error"
+
+  # BR-5: Emergency Duration Constraints
+  - id: "BR-5"
+    title: "Emergency access duration must be positive and reasonable"
+    description: "Requested duration must be greater than 0 minutes"
+
+    valid_tests:
+      - input_action: "Submit emergency request with duration=60"
+        expected_result: "Request accepted, duration set to 60 minutes"
+
+    invalid_tests:
+      - input_action: "Submit emergency request with duration=0 or negative"
+        expected_result: "Request rejected with validation error, duration must be positive"
+
+  # BR-6: Login Attempt Rate Limiting
+  - id: "BR-6"
+    title: "Account locked after multiple failed login attempts"
+    description: "System locks account after 5 failed login attempts within 5 minutes"
+
+    valid_tests:
+      - input_action: "User attempts login with valid credentials"
+        expected_result: "Login successful if credentials are correct"
+
+    invalid_tests:
+      - input_action: "User makes 5 consecutive failed login attempts, then tries valid login"
+        expected_result: "Account locked, even valid login rejected with 429 Too Many Requests"
+
+  # BR-7: Inactive Account Cannot Login
+  - id: "BR-7"
+    title: "Inactive accounts (is_active=False) cannot authenticate"
+    description: "Users with inactive status cannot login regardless of other factors"
+
+    valid_tests:
+      - input_action: "Active user (is_active=True) attempts login"
+        expected_result: "Login successful with valid credentials"
+
+    invalid_tests:
+      - input_action: "Inactive user (is_active=False) attempts login"
+        expected_result: "Login rejected with 403 Forbidden, account disabled message"
+
+  # BR-8: Only Admin Can Approve Emergency Requests
+  - id: "BR-8"
+    title: "Emergency access approval requires admin role"
+    description: "Only users with admin role can approve emergency access requests"
+
+    valid_tests:
+      - input_action: "Admin user approves emergency request"
+        expected_result: "Request approved, status changed to APPROVED"
+
+    invalid_tests:
+      - input_action: "Non-admin user attempts to approve emergency request"
+        expected_result: "Request rejected with 403 Forbidden, insufficient permissions"
